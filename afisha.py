@@ -6,8 +6,11 @@ import requests
 
 AFISHA_URL = "https://puppet-minsk.by/afisha"
 SHOWS_FILE = "shows.json"
-BOT_TOKEN = "7362832295:AAF0AklqV_3XNLe8RgMfJGX_p4hvLSyI4lc"
-CHAT_ID = "1053125115"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
+if not BOT_TOKEN or not CHAT_ID:
+    raise ValueError("BOT_TOKEN and CHAT_ID environment variables must be set")
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
