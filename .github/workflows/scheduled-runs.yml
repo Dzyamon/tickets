@@ -1,4 +1,4 @@
-name: Scheduled Show Checks
+name: Show Checks
 
 on:
   schedule:
@@ -7,6 +7,9 @@ on:
     - cron: '0 7 * * *'  # 10:00 UTC+3
     - cron: '0 10 * * *' # 13:00 UTC+3
     - cron: '0 13 * * *' # 16:00 UTC+3
+  push:
+    branches:
+      - main
   workflow_dispatch: # Allow manual triggering
 
 jobs:
