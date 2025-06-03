@@ -2,11 +2,9 @@ name: Show Checks
 
 on:
   schedule:
-    # UTC+3 times: 10:00, 13:00, 16:00
-    # Converting to UTC: 07:00, 10:00, 13:00
-    - cron: '0 7 * * *'  # 10:00 UTC+3
-    - cron: '0 10 * * *' # 13:00 UTC+3
-    - cron: '0 13 * * *' # 16:00 UTC+3
+    # UTC+3 time: 11:00
+    # Converting to UTC: 08:00
+    - cron: '0 8 * * *'  # 11:00 UTC+3
   push:
     branches:
       - main
@@ -59,15 +57,23 @@ jobs:
       run: |
         playwright install chromium
         playwright install-deps
-        
+
+    - name: Cache shows data
+      uses: actions/cache@v4
+      with:
+        path: shows.json
+        key: shows-${{ runner.os }}
+        restore-keys: |
+          shows-${{ runner.os }}-
+
     - name: Run Afisha-Events
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
       run: python afisha.py
         
-    - name: Run Tickets-Check
-      env:
-        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        CHAT_IDS: ${{ secrets.CHAT_IDS }}
-      run: python tickets.py 
+    # - name: Run Tickets-Check
+    #   env:
+    #     BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+    #     CHAT_IDS: ${{ secrets.CHAT_IDS }}
+    #   run: python tickets.py 

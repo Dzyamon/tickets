@@ -90,10 +90,13 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
 
 def load_previous_shows():
     if not os.path.exists(SHOWS_FILE):
+        logger.info("No previous shows file found. This might be the first run.")
         return []
     try:
         with open(SHOWS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            shows = json.load(f)
+            logger.info(f"Loaded {len(shows)} shows from previous run")
+            return shows
     except Exception as e:
         logger.error(f"Error loading previous shows: {e}")
         return []
@@ -102,18 +105,28 @@ def save_shows(shows):
     try:
         with open(SHOWS_FILE, "w", encoding="utf-8") as f:
             json.dump(shows, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(shows)} shows to {SHOWS_FILE}")
     except Exception as e:
         logger.error(f"Error saving shows: {e}")
 
 def find_new_shows(old, new):
     old_set = set((item["title"], item["link"]) for item in old)
-    return [item for item in new if (item["title"], item["link"]) not in old_set]
+    new_shows = [item for item in new if (item["title"], item["link"]) not in old_set]
+    logger.info(f"Found {len(new_shows)} new shows out of {len(new)} total shows")
+    return new_shows
 
 def main():
     try:
         logger.info("Starting show check")
         previous_shows = load_previous_shows()
         current_shows = asyncio.run(get_shows_with_retry())
+        
+        # If this is the first run (no previous shows), don't send notifications
+        if not previous_shows:
+            logger.info("First run detected. Saving shows without sending notifications.")
+            save_shows(current_shows)
+            return
+            
         new_shows = find_new_shows(previous_shows, current_shows)
         
         if new_shows:
