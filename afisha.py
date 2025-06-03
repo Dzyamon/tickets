@@ -49,7 +49,7 @@ def send_telegram_message(message):
             success = False
     return success
 
-async def get_shows_with_retry(max_retries=3, timeout=30000):  # Reduced timeout to 30 seconds
+async def get_shows_with_retry(max_retries=3, timeout=30000):
     for attempt in range(max_retries):
         browser = None
         try:
@@ -61,47 +61,45 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):  # Reduced timeout
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
                         '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
                         '--disable-gpu',
-                        '--disable-web-security',
-                        '--disable-features=IsolateOrigins,site-per-process',
-                        '--disable-site-isolation-trials'
+                        '--no-zygote',
+                        '--single-process'
                     ]
                 )
                 
                 logger.info("Creating browser context")
                 context = await browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},
+                    viewport={'width': 1280, 'height': 720},  # Reduced viewport size
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    ignore_https_errors=True,
-                    bypass_csp=True
+                    ignore_https_errors=True
                 )
                 
                 logger.info("Creating new page")
                 page = await context.new_page()
                 
+                # Set a shorter timeout for the initial page load
+                page.set_default_timeout(20000)  # 20 seconds
+                
                 logger.info(f"Loading page {AFISHA_URL}")
                 try:
-                    # First try with a shorter timeout
-                    response = await page.goto(AFISHA_URL, timeout=timeout, wait_until='domcontentloaded')
+                    # Try to load the page with minimal waiting
+                    response = await page.goto(
+                        AFISHA_URL,
+                        wait_until='commit',  # Wait only for the initial HTML
+                        timeout=20000
+                    )
                     if not response:
                         raise Exception("Failed to get response from page")
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
+                        
+                    # Wait for the content to be available
+                    logger.info("Waiting for content to load")
+                    await page.wait_for_selector(".afisha_item", timeout=20000)
+                    
                 except Exception as e:
                     logger.error(f"Error loading page: {str(e)}")
                     raise
-                
-                logger.info("Waiting for network idle")
-                try:
-                    # Reduced timeout for network idle
-                    await page.wait_for_load_state('networkidle', timeout=timeout)
-                except Exception as e:
-                    logger.warning(f"Network idle timeout: {str(e)}")
-                    # Continue anyway as we might have the content we need
-                
-                # Add a small delay to ensure content is loaded
-                await asyncio.sleep(2)
                 
                 # Find all show blocks
                 logger.info("Looking for show blocks")
@@ -136,7 +134,7 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):  # Reduced timeout
             if attempt == max_retries - 1:
                 raise
             logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
-            await asyncio.sleep(5)  # Wait 5 seconds before retrying
+            await asyncio.sleep(5)
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
             logger.error(f"Error type: {type(e)}")
