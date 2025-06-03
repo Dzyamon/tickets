@@ -1,9 +1,14 @@
 import asyncio
+import json
+import os
 from playwright.async_api import async_playwright, TimeoutError
 import requests
-import os
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(

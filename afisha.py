@@ -5,6 +5,10 @@ from playwright.async_api import async_playwright, TimeoutError
 import requests
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(
@@ -14,7 +18,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 AFISHA_URL = "https://puppet-minsk.by/afisha"
-SHOWS_FILE = "shows.json"
+# Use different file names for local and GitHub Actions environments
+SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat IDs
 
@@ -46,44 +51,86 @@ def send_telegram_message(message):
 
 async def get_shows_with_retry(max_retries=3, timeout=60000):
     for attempt in range(max_retries):
+        browser = None
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                logger.info(f"Attempt {attempt + 1}/{max_retries}: Launching browser")
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-accelerated-2d-canvas',
+                        '--disable-gpu'
+                    ]
+                )
+                
+                logger.info("Creating browser context")
                 context = await browser.new_context(
                     viewport={'width': 1920, 'height': 1080},
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    ignore_https_errors=True
                 )
+                
+                logger.info("Creating new page")
                 page = await context.new_page()
                 
-                logger.info(f"Attempt {attempt + 1}/{max_retries}: Loading page {AFISHA_URL}")
-                await page.goto(AFISHA_URL, timeout=timeout)
-                await page.wait_for_load_state('networkidle', timeout=timeout)
+                logger.info(f"Loading page {AFISHA_URL}")
+                try:
+                    response = await page.goto(AFISHA_URL, timeout=timeout, wait_until='domcontentloaded')
+                    if not response:
+                        raise Exception("Failed to get response from page")
+                    if not response.ok:
+                        raise Exception(f"Page returned status {response.status}")
+                except Exception as e:
+                    logger.error(f"Error loading page: {str(e)}")
+                    raise
+                
+                logger.info("Waiting for network idle")
+                try:
+                    await page.wait_for_load_state('networkidle', timeout=timeout)
+                except Exception as e:
+                    logger.warning(f"Network idle timeout: {str(e)}")
                 
                 # Find all show blocks
+                logger.info("Looking for show blocks")
                 show_blocks = await page.query_selector_all(".afisha_item")
                 shows = []
+                
+                logger.info(f"Found {len(show_blocks)} show blocks")
                 for block in show_blocks:
-                    # Get the title
-                    title_elem = await block.query_selector(".afisha_item-title")
-                    title = await title_elem.inner_text() if title_elem else "No title"
-                    # Get the ticket link
-                    link_elem = await block.query_selector("a.afisha_item-hover")
-                    link = await link_elem.get_attribute("href") if link_elem else None
-                    if link and not link.startswith("http"):
-                        link = "https://puppet-minsk.by" + link
-                    shows.append({"title": title, "link": link})
+                    try:
+                        # Get the title
+                        title_elem = await block.query_selector(".afisha_item-title")
+                        title = await title_elem.inner_text() if title_elem else "No title"
+                        # Get the ticket link
+                        link_elem = await block.query_selector("a.afisha_item-hover")
+                        link = await link_elem.get_attribute("href") if link_elem else None
+                        if link and not link.startswith("http"):
+                            link = "https://puppet-minsk.by" + link
+                        shows.append({"title": title, "link": link})
+                    except Exception as e:
+                        logger.error(f"Error processing show block: {str(e)}")
+                        continue
 
+                logger.info("Closing browser")
                 await browser.close()
                 logger.info(f"Successfully retrieved {len(shows)} shows")
                 return shows
                 
         except TimeoutError as e:
             logger.error(f"Timeout error on attempt {attempt + 1}: {e}")
+            if browser:
+                await browser.close()
             if attempt == max_retries - 1:
                 raise
             await asyncio.sleep(5)  # Wait 5 seconds before retrying
         except Exception as e:
-            logger.error(f"Error on attempt {attempt + 1}: {e}")
+            logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            if browser:
+                await browser.close()
             if attempt == max_retries - 1:
                 raise
             await asyncio.sleep(5)
@@ -119,7 +166,15 @@ def main():
     try:
         logger.info("Starting show check")
         previous_shows = load_previous_shows()
-        current_shows = asyncio.run(get_shows_with_retry())
+        
+        # Create and set a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            current_shows = loop.run_until_complete(get_shows_with_retry())
+        finally:
+            loop.close()
         
         # If this is the first run (no previous shows), don't send notifications
         if not previous_shows:

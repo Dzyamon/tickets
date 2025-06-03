@@ -1,3 +1,10 @@
+# Environment variables
+.env
+
+# Local data files
+shows.json
+debug.html
+
 # Python
 __pycache__/
 *.py[cod]
@@ -33,3 +40,4 @@ ENV/
 
 # Project specific
 shows.json 
+.env
