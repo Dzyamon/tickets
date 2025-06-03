@@ -63,5 +63,11 @@ jobs:
     - name: Run show checker
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        CHAT_ID: ${{ secrets.CHAT_ID }}
-      run: python afisha.py 
+        CHAT_IDS: ${{ secrets.CHAT_IDS }}
+      run: python afisha.py
+        
+    - name: Run ticket checker
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHAT_IDS: ${{ secrets.CHAT_IDS }}
+      run: python tickets.py 
