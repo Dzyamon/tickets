@@ -49,7 +49,7 @@ def send_telegram_message(message):
             success = False
     return success
 
-async def get_shows_with_retry(max_retries=3, timeout=60000):
+async def get_shows_with_retry(max_retries=3, timeout=30000):  # Reduced timeout to 30 seconds
     for attempt in range(max_retries):
         browser = None
         try:
@@ -62,7 +62,10 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                         '--disable-setuid-sandbox',
                         '--disable-dev-shm-usage',
                         '--disable-accelerated-2d-canvas',
-                        '--disable-gpu'
+                        '--disable-gpu',
+                        '--disable-web-security',
+                        '--disable-features=IsolateOrigins,site-per-process',
+                        '--disable-site-isolation-trials'
                     ]
                 )
                 
@@ -70,7 +73,8 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                 context = await browser.new_context(
                     viewport={'width': 1920, 'height': 1080},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    ignore_https_errors=True
+                    ignore_https_errors=True,
+                    bypass_csp=True
                 )
                 
                 logger.info("Creating new page")
@@ -78,6 +82,7 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                 
                 logger.info(f"Loading page {AFISHA_URL}")
                 try:
+                    # First try with a shorter timeout
                     response = await page.goto(AFISHA_URL, timeout=timeout, wait_until='domcontentloaded')
                     if not response:
                         raise Exception("Failed to get response from page")
@@ -89,9 +94,14 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                 
                 logger.info("Waiting for network idle")
                 try:
+                    # Reduced timeout for network idle
                     await page.wait_for_load_state('networkidle', timeout=timeout)
                 except Exception as e:
                     logger.warning(f"Network idle timeout: {str(e)}")
+                    # Continue anyway as we might have the content we need
+                
+                # Add a small delay to ensure content is loaded
+                await asyncio.sleep(2)
                 
                 # Find all show blocks
                 logger.info("Looking for show blocks")
@@ -125,6 +135,7 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                 await browser.close()
             if attempt == max_retries - 1:
                 raise
+            logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
             await asyncio.sleep(5)  # Wait 5 seconds before retrying
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
@@ -133,6 +144,7 @@ async def get_shows_with_retry(max_retries=3, timeout=60000):
                 await browser.close()
             if attempt == max_retries - 1:
                 raise
+            logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
             await asyncio.sleep(5)
 
 def load_previous_shows():
