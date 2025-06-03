@@ -19,7 +19,15 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat IDs
-TCE_URL = "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3542"
+
+# Base URL and show IDs
+BASE_URL = "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data="
+SHOW_IDS = ["3542", "3537", "3538", "3546", "3547", "3557"]
+
+# Generate full URLs
+SHOW_URLS = [BASE_URL + show_id for show_id in SHOW_IDS]
+
+SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable must be set")
@@ -47,63 +55,149 @@ def send_telegram_message(message):
             success = False
     return success
 
-async def check_tickets_with_retry(max_retries=3, timeout=60000):
+def load_previous_seats():
+    if not os.path.exists(SEATS_FILE):
+        logger.info("No previous seats file found. This might be the first run.")
+        return {}
+    try:
+        with open(SEATS_FILE, "r", encoding="utf-8") as f:
+            seats = json.load(f)
+            logger.info(f"Loaded seats data for {len(seats)} shows")
+            return seats
+    except Exception as e:
+        logger.error(f"Error loading previous seats: {e}")
+        return {}
+
+def save_seats(seats):
+    try:
+        with open(SEATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(seats, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved seats data for {len(seats)} shows")
+    except Exception as e:
+        logger.error(f"Error saving seats: {e}")
+
+async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
     for attempt in range(max_retries):
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-                )
-                page = await context.new_page()
-                
-                logger.info(f"Attempt {attempt + 1}/{max_retries}: Loading ticket page {TCE_URL}")
-                await page.goto(TCE_URL, timeout=timeout)
-                await page.wait_for_load_state('networkidle', timeout=timeout)
-                
-                logger.info("Waiting for seat elements to load...")
-                await page.wait_for_selector("table#myHall td.place", timeout=timeout)
-                await page.wait_for_timeout(5000)  # Additional wait for dynamic content
+            logger.info(f"Loading page {url}")
+            response = await page.goto(url, wait_until='domcontentloaded', timeout=timeout)
+            if not response:
+                raise Exception("Failed to get response from page")
+            if not response.ok:
+                raise Exception(f"Page returned status {response.status}")
 
-                seats = await page.query_selector_all("table#myHall td.place")
-                available = []
-                for seat in seats:
-                    title = await seat.get_attribute("title")
-                    if title and "Цена" in title:
-                        available.append(seat)
+            logger.info("Waiting for seat elements to load...")
+            await page.wait_for_selector("table#myHall td.place", timeout=timeout)
+            
+            # Get show title
+            title_elem = await page.query_selector("h1")
+            title = await title_elem.inner_text() if title_elem else "Unknown Show"
+            
+            seats = await page.query_selector_all("table#myHall td.place")
+            available = []
+            for seat in seats:
+                title_attr = await seat.get_attribute("title")
+                if title_attr and "Цена" in title_attr:
+                    available.append(title_attr)
 
-                # Save debug info
-                content = await page.content()
-                with open("debug.html", "w", encoding="utf-8") as f:
-                    f.write(content)
-
-                await browser.close()
-                logger.info(f"Successfully checked tickets. Found {len(available)} available seats")
-                return len(available)
+            logger.info(f"Found {len(available)} available seats for {title}")
+            return {
+                "title": title,
+                "url": url,
+                "available_seats": available,
+                "count": len(available)
+            }
                 
         except TimeoutError as e:
             logger.error(f"Timeout error on attempt {attempt + 1}: {e}")
             if attempt == max_retries - 1:
                 raise
-            await asyncio.sleep(5)  # Wait 5 seconds before retrying
+            await asyncio.sleep(5)
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {e}")
             if attempt == max_retries - 1:
                 raise
             await asyncio.sleep(5)
 
+async def check_all_shows():
+    browser = None
+    context = None
+    try:
+        async with async_playwright() as p:
+            logger.info("Launching browser")
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu'
+                ]
+            )
+            
+            logger.info("Creating browser context")
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 720},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                ignore_https_errors=True
+            )
+            
+            logger.info("Creating new page")
+            page = await context.new_page()
+            page.set_default_timeout(20000)
+
+            current_seats = {}
+            for url in SHOW_URLS:
+                try:
+                    show_data = await check_tickets_for_show(page, url)
+                    current_seats[url] = show_data
+                except Exception as e:
+                    logger.error(f"Failed to check show at {url}: {e}")
+                    continue
+
+            await context.close()
+            await browser.close()
+            return current_seats
+
+    except Exception as e:
+        logger.error(f"Error in check_all_shows: {e}")
+        if context:
+            await context.close()
+        if browser:
+            await browser.close()
+        raise
+
 def main():
     try:
         logger.info("Starting ticket check")
-        count = asyncio.run(check_tickets_with_retry())
+        previous_seats = load_previous_seats()
+        current_seats = asyncio.run(check_all_shows())
         
-        if count > 0:
-            msg = f"🎫 Tickets available at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}!\nCount: {count}"
-            logger.info(f"Found {count} available tickets")
-            send_telegram_message(msg)
-        else:
-            logger.info("No tickets available")
+        # If this is the first run, just save the data
+        if not previous_seats:
+            logger.info("First run detected. Saving seats data without sending notifications.")
+            save_seats(current_seats)
+            return
+            
+        # Check for changes in each show
+        for url, current_data in current_seats.items():
+            previous_data = previous_seats.get(url, {"count": 0, "available_seats": []})
+            
+            # If there are new seats available
+            if current_data["count"] > previous_data["count"]:
+                new_seats = set(current_data["available_seats"]) - set(previous_data["available_seats"])
+                msg = (
+                    f"🎫 New tickets available for {current_data['title']}!\n"
+                    f"URL: {url}\n"
+                    f"New seats: {len(new_seats)}\n"
+                    f"Total available: {current_data['count']}\n"
+                    f"New seats details:\n" + "\n".join(new_seats)
+                )
+                logger.info(f"Found new seats for {current_data['title']}")
+                send_telegram_message(msg)
+        
+        # Save current state
+        save_seats(current_seats)
             
     except Exception as e:
         error_msg = f"Error checking tickets: {str(e)}"

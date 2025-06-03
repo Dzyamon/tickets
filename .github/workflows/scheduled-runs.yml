@@ -72,8 +72,8 @@ jobs:
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
       run: python afisha.py
         
-    # - name: Run Tickets-Check
-    #   env:
-    #     BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-    #     CHAT_IDS: ${{ secrets.CHAT_IDS }}
-    #   run: python tickets.py 
+    - name: Run Tickets-Check
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHAT_IDS: ${{ secrets.CHAT_IDS }}
+      run: python tickets.py 

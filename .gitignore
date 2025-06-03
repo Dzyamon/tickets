@@ -2,8 +2,9 @@
 .env
 
 # Local data files
+local_seats.json
+local_shows.json
 shows.json
-debug.html
 
 # Python
 __pycache__/
@@ -37,7 +38,3 @@ ENV/
 .vscode/
 *.swp
 *.swo
-
-# Project specific
-shows.json 
-.env
