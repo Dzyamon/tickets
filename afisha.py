@@ -52,6 +52,7 @@ def send_telegram_message(message):
 async def get_shows_with_retry(max_retries=3, timeout=30000):
     for attempt in range(max_retries):
         browser = None
+        context = None
         try:
             async with async_playwright() as p:
                 logger.info(f"Attempt {attempt + 1}/{max_retries}: Launching browser")
@@ -61,15 +62,13 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
                         '--disable-dev-shm-usage',
-                        '--disable-gpu',
-                        '--no-zygote',
-                        '--single-process'
+                        '--disable-gpu'
                     ]
                 )
                 
                 logger.info("Creating browser context")
                 context = await browser.new_context(
-                    viewport={'width': 1280, 'height': 720},  # Reduced viewport size
+                    viewport={'width': 1280, 'height': 720},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                     ignore_https_errors=True
                 )
@@ -85,7 +84,7 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     # Try to load the page with minimal waiting
                     response = await page.goto(
                         AFISHA_URL,
-                        wait_until='commit',  # Wait only for the initial HTML
+                        wait_until='domcontentloaded',  # Changed back to domcontentloaded
                         timeout=20000
                     )
                     if not response:
@@ -123,12 +122,15 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         continue
 
                 logger.info("Closing browser")
+                await context.close()
                 await browser.close()
                 logger.info(f"Successfully retrieved {len(shows)} shows")
                 return shows
                 
         except TimeoutError as e:
             logger.error(f"Timeout error on attempt {attempt + 1}: {e}")
+            if context:
+                await context.close()
             if browser:
                 await browser.close()
             if attempt == max_retries - 1:
@@ -138,6 +140,8 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
             logger.error(f"Error type: {type(e)}")
+            if context:
+                await context.close()
             if browser:
                 await browser.close()
             if attempt == max_retries - 1:
