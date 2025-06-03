@@ -66,6 +66,14 @@ jobs:
         restore-keys: |
           shows-${{ runner.os }}-
 
+    - name: Cache tickets data
+      uses: actions/cache@v4
+      with:
+        path: seats.json
+        key: tickets-${{ runner.os }}
+        restore-keys: |
+          tickets-${{ runner.os }}-
+
     - name: Run Afisha-Events
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}

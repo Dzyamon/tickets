@@ -4,7 +4,6 @@
 # Local data files
 local_seats.json
 local_shows.json
-shows.json
 
 # Python
 __pycache__/
