@@ -16,20 +16,33 @@ logger = logging.getLogger(__name__)
 AFISHA_URL = "https://puppet-minsk.by/afisha"
 SHOWS_FILE = "shows.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat IDs
 
-if not BOT_TOKEN or not CHAT_ID:
-    raise ValueError("BOT_TOKEN and CHAT_ID environment variables must be set")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable must be set")
+if not CHAT_IDS or not any(CHAT_IDS):
+    raise ValueError("CHAT_IDS environment variable must be set with at least one chat ID")
 
 def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
-    try:
-        response = requests.post(url, data=data)
-        return response.ok
-    except Exception as e:
-        logger.error(f"Failed to send Telegram message: {e}")
-        return False
+    success = True
+    for chat_id in CHAT_IDS:
+        chat_id = chat_id.strip()  # Remove any whitespace
+        if not chat_id:  # Skip empty chat IDs
+            continue
+            
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        data = {"chat_id": chat_id, "text": message}
+        try:
+            response = requests.post(url, data=data)
+            if not response.ok:
+                logger.error(f"Failed to send Telegram message to {chat_id}: {response.text}")
+                success = False
+            else:
+                logger.info(f"Successfully sent message to chat {chat_id}")
+        except Exception as e:
+            logger.error(f"Failed to send Telegram message to {chat_id}: {e}")
+            success = False
+    return success
 
 async def get_shows_with_retry(max_retries=3, timeout=60000):
     for attempt in range(max_retries):
@@ -104,7 +117,7 @@ def main():
         new_shows = find_new_shows(previous_shows, current_shows)
         
         if new_shows:
-            msg = f"New shows added at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:\n" + "\n".join(f"{show['title']}: {show['link']}" for show in new_shows)
+            msg = f"🎭 New shows added at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}:\n" + "\n".join(f"{show['title']}: {show['link']}" for show in new_shows)
             logger.info(f"Found {len(new_shows)} new shows")
             send_telegram_message(msg)
             save_shows(current_shows)
