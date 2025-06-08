@@ -22,7 +22,7 @@ CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat ID
 
 # Base URL and show IDs
 BASE_URL = "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data="
-SHOW_IDS = ["3542", "3537", "3538", "3546", "3547", "3557"]
+SHOW_IDS = ["3542", "3546", "3547", "3557"]
 
 # Generate full URLs
 SHOW_URLS = [BASE_URL + show_id for show_id in SHOW_IDS]
