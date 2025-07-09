@@ -2,9 +2,9 @@ name: Afisha Check
 
 on:
   schedule:
-    # UTC+3 time: 11:00
-    # Converting to UTC: 08:00
-    - cron: '0 8 * * *'  # 11:00 UTC+3
+    # UTC+3 time: 9:00
+    # Converting to UTC: 06:00
+    - cron: '0 6 * * *'  # 9:00 UTC+3
   push:
     branches:
       - main

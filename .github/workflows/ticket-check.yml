@@ -1,19 +1,19 @@
 name: Tickets Check
 
 on:
-  schedule:
-    # UTC+3 time: 9:00-18:00
-    # Converting to UTC: 6:00-15:00
-    - cron: '0 6 * * *'  # 9:00 UTC+3
-    - cron: '0 7 * * *'  # 10:00 UTC+3
-    - cron: '0 8 * * *'  # 11:00 UTC+3
-    - cron: '0 9 * * *'  # 12:00 UTC+3
-    - cron: '0 10 * * *' # 13:00 UTC+3
-    - cron: '0 11 * * *' # 14:00 UTC+3
-    - cron: '0 12 * * *' # 15:00 UTC+3
-    - cron: '0 13 * * *' # 16:00 UTC+3
-    - cron: '0 14 * * *' # 17:00 UTC+3
-    - cron: '0 15 * * *' # 18:00 UTC+3
+  # schedule:
+  #   # UTC+3 time: 9:00-18:00
+  #   # Converting to UTC: 6:00-15:00
+  #   - cron: '0 6 * * *'  # 9:00 UTC+3
+  #   - cron: '0 7 * * *'  # 10:00 UTC+3
+  #   - cron: '0 8 * * *'  # 11:00 UTC+3
+  #   - cron: '0 9 * * *'  # 12:00 UTC+3
+  #   - cron: '0 10 * * *' # 13:00 UTC+3
+  #   - cron: '0 11 * * *' # 14:00 UTC+3
+  #   - cron: '0 12 * * *' # 15:00 UTC+3
+  #   - cron: '0 13 * * *' # 16:00 UTC+3
+  #   - cron: '0 14 * * *' # 17:00 UTC+3
+  #   - cron: '0 15 * * *' # 18:00 UTC+3
   push:
     branches:
       - main
