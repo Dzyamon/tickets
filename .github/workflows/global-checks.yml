@@ -93,7 +93,10 @@ jobs:
         git config user.email "github-actions@github.com"
         rm -f shows.json
         git checkout state
-        cp $GITHUB_WORKSPACE/shows.json shows.json
+        # Only copy if source and destination are different
+        if [ "$GITHUB_WORKSPACE/shows.json" != "$(pwd)/shows.json" ]; then
+          cp $GITHUB_WORKSPACE/shows.json shows.json
+        fi
         git add shows.json
         git commit -m "Update shows state [skip ci]" || echo "No changes to commit"
         git push origin state
