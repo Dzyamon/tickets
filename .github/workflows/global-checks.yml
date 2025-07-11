@@ -86,9 +86,11 @@ jobs:
       run: |
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
+        rm -f shows.json
         git checkout state
         cp $GITHUB_WORKSPACE/shows.json shows.json
         git add shows.json
         git commit -m "Update shows state [skip ci]" || echo "No changes to commit"
         git push origin state
+        rm -f shows.json
         git checkout $GITHUB_REF_NAME 
