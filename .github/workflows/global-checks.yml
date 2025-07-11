@@ -69,16 +69,21 @@ jobs:
         playwright install chromium
         playwright install-deps
 
-    - name: Cache data
-      uses: actions/cache@v4
+    - name: Download previous shows.json artifact
+      uses: actions/download-artifact@v4
       with:
-        path: ${{ inputs.cache-path }}
-        key: ${{ inputs.cache-key }}-${{ runner.os }}
-        restore-keys: |
-          ${{ inputs.cache-key }}-${{ runner.os }}-
+        name: shows-json
+        path: .
+      continue-on-error: true
 
     - name: Run Script
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
       run: python ${{ inputs.script-name }} 
+
+    - name: Upload updated shows.json artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: shows-json
+        path: shows.json 
