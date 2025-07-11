@@ -88,7 +88,7 @@ jobs:
         git config user.email "github-actions@github.com"
         rm -f shows.json
         git checkout state
-        cp $GITHUB_WORKSPACE/shows.json shows.json
+        # No need to copy, file is already present
         git add shows.json
         git commit -m "Update shows state [skip ci]" || echo "No changes to commit"
         git push origin state
