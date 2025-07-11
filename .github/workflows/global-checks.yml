@@ -82,10 +82,8 @@ jobs:
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
       run: python ${{ inputs.script-name }}
 
-    - name: List files and show shows.json contents
-      run: |
-        ls -l
-        cat shows.json || echo "shows.json not found"
+    - name: Save updated shows.json to temp
+      run: cp shows.json /tmp/shows.json
 
     - name: Commit and push updated shows.json to state branch
       run: |
@@ -93,10 +91,7 @@ jobs:
         git config user.email "github-actions@github.com"
         rm -f shows.json
         git checkout state
-        # Only copy if source and destination are different
-        if [ "$GITHUB_WORKSPACE/shows.json" != "$(pwd)/shows.json" ]; then
-          cp $GITHUB_WORKSPACE/shows.json shows.json
-        fi
+        cp /tmp/shows.json shows.json
         git add shows.json
         git commit -m "Update shows state [skip ci]" || echo "No changes to commit"
         git push origin state
