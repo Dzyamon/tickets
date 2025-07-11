@@ -69,21 +69,26 @@ jobs:
         playwright install chromium
         playwright install-deps
 
-    - name: Download previous shows.json artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: shows-json
-        path: .
-      continue-on-error: true
+    - name: Fetch state branch and shows.json
+      run: |
+        git fetch origin state:state || git checkout --orphan state
+        git checkout state
+        cp shows.json $GITHUB_WORKSPACE/shows.json || echo "No previous shows.json"
+        git checkout $GITHUB_REF_NAME
 
     - name: Run Script
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
-      run: python ${{ inputs.script-name }} 
+      run: python ${{ inputs.script-name }}
 
-    - name: Upload updated shows.json artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: shows-json
-        path: shows.json 
+    - name: Commit and push updated shows.json to state branch
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git checkout state
+        cp $GITHUB_WORKSPACE/shows.json shows.json
+        git add shows.json
+        git commit -m "Update shows state [skip ci]" || echo "No changes to commit"
+        git push origin state
+        git checkout $GITHUB_REF_NAME 
