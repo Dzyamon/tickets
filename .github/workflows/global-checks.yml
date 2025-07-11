@@ -82,6 +82,11 @@ jobs:
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
       run: python ${{ inputs.script-name }}
 
+    - name: List files and show shows.json contents
+      run: |
+        ls -l
+        cat shows.json || echo "shows.json not found"
+
     - name: Commit and push updated shows.json to state branch
       run: |
         git config user.name "github-actions"
