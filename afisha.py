@@ -98,7 +98,8 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     
                 except Exception as e:
                     logger.error(f"Error loading page: {str(e)}")
-                    raise
+                    # Raise TimeoutError to trigger the retry logic in the outer loop
+                    raise TimeoutError(f"Timeout or error loading page: {e}")
                 
                 # Find all show blocks
                 logger.info("Looking for show blocks")
