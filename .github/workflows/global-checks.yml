@@ -76,6 +76,9 @@ jobs:
         cp shows.json $GITHUB_WORKSPACE/shows.json || echo "No previous shows.json"
         git checkout $GITHUB_REF_NAME
 
+    - name: List files before script
+      run: ls -l
+
     - name: Run Script
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}

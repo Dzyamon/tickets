@@ -179,6 +179,9 @@ def find_new_shows(old, new):
 
 def main():
     try:
+        # Debug: print current working directory and files
+        print("Current working directory:", os.getcwd())
+        print("Files in cwd:", os.listdir())
         logger.info("Starting show check")
         previous_shows = load_previous_shows()
         
