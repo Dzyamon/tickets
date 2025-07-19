@@ -132,9 +132,12 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
             logger.error(f"Timeout error on attempt {attempt + 1}: {e}")
             if context:
                 await context.close()
+                context = None
             if browser:
                 await browser.close()
+                browser = None
             if attempt == max_retries - 1:
+                # Only raise if it's the last attempt
                 raise
             logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
             await asyncio.sleep(5)
@@ -143,8 +146,10 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
             logger.error(f"Error type: {type(e)}")
             if context:
                 await context.close()
+                context = None
             if browser:
                 await browser.close()
+                browser = None
             if attempt == max_retries - 1:
                 raise
             logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
@@ -191,6 +196,13 @@ def main():
         
         try:
             current_shows = loop.run_until_complete(get_shows_with_retry())
+        except TimeoutError as e:
+            # Only log timeout errors, do not send Telegram notification
+            logger.error(f"Timeout or loading error: {str(e)}")
+        except Exception as e:
+            error_msg = f"Error checking shows: {str(e)}"
+            logger.error(error_msg)
+            send_telegram_message(error_msg)
         finally:
             loop.close()
         
