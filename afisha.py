@@ -199,10 +199,12 @@ def main():
         except TimeoutError as e:
             # Only log timeout errors, do not send Telegram notification
             logger.error(f"Timeout or loading error: {str(e)}")
+            return  # Prevent further execution
         except Exception as e:
             error_msg = f"Error checking shows: {str(e)}"
             logger.error(error_msg)
             send_telegram_message(error_msg)
+            return  # Prevent further execution
         finally:
             loop.close()
         
