@@ -65,54 +65,39 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         '--disable-gpu'
                     ]
                 )
-                
                 logger.info("Creating browser context")
                 context = await browser.new_context(
                     viewport={'width': 1280, 'height': 720},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                     ignore_https_errors=True
                 )
-                
                 logger.info("Creating new page")
                 page = await context.new_page()
-                
-                # Set a shorter timeout for the initial page load
-                page.set_default_timeout(20000)  # 20 seconds
-                
+                page.set_default_timeout(20000)
                 logger.info(f"Loading page {AFISHA_URL}")
                 try:
-                    # Try to load the page with minimal waiting
                     response = await page.goto(
                         AFISHA_URL,
-                        wait_until='domcontentloaded',  # Changed back to domcontentloaded
+                        wait_until='domcontentloaded',
                         timeout=20000
                     )
                     if not response:
                         raise Exception("Failed to get response from page")
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
-                        
-                    # Wait for the content to be available
                     logger.info("Waiting for content to load")
                     await page.wait_for_selector(".afisha_item", timeout=20000)
-                    
                 except Exception as e:
                     logger.error(f"Error loading page: {str(e)}")
-                    # Raise TimeoutError to trigger the retry logic in the outer loop
                     raise TimeoutError(f"Timeout or error loading page: {e}")
-                
-                # Find all show blocks
                 logger.info("Looking for show blocks")
                 show_blocks = await page.query_selector_all(".afisha_item")
                 shows = []
-                
                 logger.info(f"Found {len(show_blocks)} show blocks")
                 for block in show_blocks:
                     try:
-                        # Get the title
                         title_elem = await block.query_selector(".afisha_item-title")
                         title = await title_elem.inner_text() if title_elem else "No title"
-                        # Get the ticket link
                         link_elem = await block.query_selector("a.afisha_item-hover")
                         link = await link_elem.get_attribute("href") if link_elem else None
                         if link and not link.startswith("http"):
@@ -121,35 +106,18 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     except Exception as e:
                         logger.error(f"Error processing show block: {str(e)}")
                         continue
-
                 logger.info("Closing browser")
                 await context.close()
                 await browser.close()
                 logger.info(f"Successfully retrieved {len(shows)} shows")
                 return shows
-                
-        except TimeoutError as e:
-            logger.error(f"Timeout error on attempt {attempt + 1}: {e}")
-            if context:
-                await context.close()
-                context = None
-            if browser:
-                await browser.close()
-                browser = None
-            if attempt == max_retries - 1:
-                # Only raise if it's the last attempt
-                raise
-            logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
-            await asyncio.sleep(5)
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
             if context:
                 await context.close()
-                context = None
             if browser:
                 await browser.close()
-                browser = None
+            # Only re-raise on the last attempt
             if attempt == max_retries - 1:
                 raise
             logger.info(f"Waiting 5 seconds before retry {attempt + 2}")
