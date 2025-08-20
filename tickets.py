@@ -120,8 +120,33 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
             if not response.ok:
                 raise Exception(f"Page returned status {response.status}")
 
+            logger.info("Waiting for page to load and checking for bot protection...")
+            
+            # Check if we're on the bot protection page
+            try:
+                protection_text = await page.query_selector("text=Making sure you're not a bot!")
+                if protection_text:
+                    logger.info("Bot protection detected, waiting for it to complete...")
+                    # Wait for the protection to complete - look for either the seat table or the show title
+                    await page.wait_for_selector("table#myHall td.place, h1", timeout=60000)  # Longer timeout for protection
+                    logger.info("Bot protection completed")
+            except Exception as e:
+                logger.info(f"No bot protection detected or already completed: {e}")
+            
+            # Now wait for seat elements
             logger.info("Waiting for seat elements to load...")
-            await page.wait_for_selector("table#myHall td.place", timeout=timeout)
+            
+            # Add a small delay to let any remaining protection processes complete
+            await asyncio.sleep(2)
+            
+            try:
+                await page.wait_for_selector("table#myHall td.place", timeout=timeout)
+            except TimeoutError:
+                # If seats don't load, try refreshing the page once
+                logger.warning("Seats not found, trying to refresh page...")
+                await page.reload()
+                await asyncio.sleep(3)
+                await page.wait_for_selector("table#myHall td.place", timeout=timeout)
             
             # Get show title
             title_elem = await page.query_selector("h1")
