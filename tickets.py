@@ -36,23 +36,57 @@ if not CHAT_IDS or not any(CHAT_IDS):
 
 def send_telegram_message(message):
     success = True
+    # Telegram message limit is 4096 characters
+    MAX_MESSAGE_LENGTH = 4000  # Leave some buffer
+    
     for chat_id in CHAT_IDS:
         chat_id = chat_id.strip()  # Remove any whitespace
         if not chat_id:  # Skip empty chat IDs
             continue
+        
+        # Split message if it's too long
+        if len(message) > MAX_MESSAGE_LENGTH:
+            messages = []
+            current_message = ""
+            lines = message.split('\n')
             
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        data = {"chat_id": chat_id, "text": message}
-        try:
-            response = requests.post(url, data=data)
-            if not response.ok:
-                logger.error(f"Failed to send Telegram message to {chat_id}: {response.text}")
+            for line in lines:
+                if len(current_message + line + '\n') > MAX_MESSAGE_LENGTH:
+                    if current_message:
+                        messages.append(current_message.strip())
+                    current_message = line + '\n'
+                else:
+                    current_message += line + '\n'
+            
+            if current_message:
+                messages.append(current_message.strip())
+        else:
+            messages = [message]
+        
+        # Send each message part
+        for i, msg_part in enumerate(messages):
+            if len(messages) > 1:
+                part_header = f"Part {i+1}/{len(messages)}:\n"
+                msg_part = part_header + msg_part
+            
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            data = {"chat_id": chat_id, "text": msg_part}
+            try:
+                response = requests.post(url, data=data)
+                if not response.ok:
+                    logger.error(f"Failed to send Telegram message part {i+1} to {chat_id}: {response.text}")
+                    success = False
+                else:
+                    logger.info(f"Successfully sent message part {i+1} to chat {chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to send Telegram message part {i+1} to {chat_id}: {e}")
                 success = False
-            else:
-                logger.info(f"Successfully sent message to chat {chat_id}")
-        except Exception as e:
-            logger.error(f"Failed to send Telegram message to {chat_id}: {e}")
-            success = False
+                
+            # Small delay between messages to avoid rate limiting
+            if len(messages) > 1:
+                import time
+                time.sleep(0.5)
+    
     return success
 
 def load_previous_seats():
@@ -186,13 +220,29 @@ def main():
             # If there are new seats available
             if current_data["count"] > previous_data["count"]:
                 new_seats = set(current_data["available_seats"]) - set(previous_data["available_seats"])
-                msg = (
-                    f"🎫 New tickets available for {current_data['title']}!\n"
-                    f"URL: {url}\n"
-                    f"New seats: {len(new_seats)}\n"
-                    f"Total available: {current_data['count']}\n"
-                    f"New seats details:\n" + "\n".join(new_seats)
-                )
+                # Create a more concise message format
+                if len(new_seats) <= 5:
+                    # For small numbers of seats, list them all
+                    seat_list = "\n".join(f"• {seat}" for seat in new_seats)
+                    msg = (
+                        f"🎫 New tickets available for {current_data['title']}!\n"
+                        f"URL: {url}\n"
+                        f"New seats: {len(new_seats)}\n"
+                        f"Total available: {current_data['count']}\n\n"
+                        f"New seats:\n{seat_list}"
+                    )
+                else:
+                    # For many seats, provide a summary and list first few
+                    first_seats = "\n".join(f"• {seat}" for seat in list(new_seats)[:5])
+                    remaining_count = len(new_seats) - 5
+                    msg = (
+                        f"🎫 New tickets available for {current_data['title']}!\n"
+                        f"URL: {url}\n"
+                        f"New seats: {len(new_seats)}\n"
+                        f"Total available: {current_data['count']}\n\n"
+                        f"First 5 new seats:\n{first_seats}\n\n"
+                        f"... and {remaining_count} more seats"
+                    )
                 logger.info(f"Found new seats for {current_data['title']}")
                 send_telegram_message(msg)
         
