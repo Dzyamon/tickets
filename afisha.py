@@ -86,25 +86,33 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
                     logger.info("Waiting for content to load")
-                    await page.wait_for_selector(".afisha_item", timeout=20000)
+                    await page.wait_for_selector("table", timeout=20000)
                 except Exception as e:
                     logger.error(f"Error loading page: {str(e)}")
                     raise TimeoutError(f"Timeout or error loading page: {e}")
-                logger.info("Looking for show blocks")
-                show_blocks = await page.query_selector_all(".afisha_item")
+                logger.info("Looking for show rows in table")
+                # Find the table with show information
+                tables = await page.query_selector_all("table")
                 shows = []
-                logger.info(f"Found {len(show_blocks)} show blocks")
-                for block in show_blocks:
+                
+                for table in tables:
                     try:
-                        title_elem = await block.query_selector(".afisha_item-title")
-                        title = await title_elem.inner_text() if title_elem else "No title"
-                        link_elem = await block.query_selector("a.afisha_item-hover")
-                        link = await link_elem.get_attribute("href") if link_elem else None
-                        if link and not link.startswith("http"):
-                            link = "https://puppet-minsk.by" + link
-                        shows.append({"title": title, "link": link})
+                        # Look for rows that contain show information
+                        rows = await table.query_selector_all("tr")
+                        for row in rows:
+                            try:
+                                # Check if this row contains a show link
+                                link_elem = await row.query_selector("a[href*='tce.by']")
+                                if link_elem:
+                                    title = await link_elem.inner_text()
+                                    link = await link_elem.get_attribute("href")
+                                    if title and link:
+                                        shows.append({"title": title.strip(), "link": link})
+                            except Exception as e:
+                                logger.error(f"Error processing table row: {str(e)}")
+                                continue
                     except Exception as e:
-                        logger.error(f"Error processing show block: {str(e)}")
+                        logger.error(f"Error processing table: {str(e)}")
                         continue
                 logger.info("Closing browser")
                 await context.close()
