@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-AFISHA_URL = "https://puppet-minsk.by/afisha"
+AFISHA_URL = "https://puppet-minsk.by/bilety/afisha"
 # Use different file names for local and GitHub Actions environments
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
