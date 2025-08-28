@@ -24,8 +24,11 @@ CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat ID
 BASE_URL = "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data="
 SHOW_IDS = [str(i) for i in range(3709, 3785)]  # IDs from 3709 to 3784
 
-# Generate full URLs
-SHOW_URLS = [BASE_URL + show_id for show_id in SHOW_IDS]
+# Skip specific problematic show IDs
+SKIP_SHOW_IDS = {"3775", "3774", "3762", "3759", "3747"}
+
+# Generate full URLs excluding skipped IDs
+SHOW_URLS = [BASE_URL + show_id for show_id in SHOW_IDS if show_id not in SKIP_SHOW_IDS]
 
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 
@@ -250,8 +253,7 @@ def main():
                     # For small numbers of seats, list them all
                     seat_list = "\n".join(f"• {seat}" for seat in new_seats)
                     msg = (
-                        f"🎫 New tickets available for {current_data['title']}!\n"
-                        f"URL: {url}\n"
+                        f"🎫 Found new tickets for {current_data['title']} — {url}\n"
                         f"New seats: {len(new_seats)}\n"
                         f"Total available: {current_data['count']}\n\n"
                         f"New seats:\n{seat_list}"
@@ -261,14 +263,13 @@ def main():
                     first_seats = "\n".join(f"• {seat}" for seat in list(new_seats)[:5])
                     remaining_count = len(new_seats) - 5
                     msg = (
-                        f"🎫 New tickets available for {current_data['title']}!\n"
-                        f"URL: {url}\n"
+                        f"🎫 Found new tickets for {current_data['title']} — {url}\n"
                         f"New seats: {len(new_seats)}\n"
                         f"Total available: {current_data['count']}\n\n"
                         f"First 5 new seats:\n{first_seats}\n\n"
                         f"... and {remaining_count} more seats"
                     )
-                logger.info(f"Found new seats for {current_data['title']}")
+                logger.info(f"Found new seats for {current_data['title']} {url}")
                 send_telegram_message(msg)
         
         # Save current state
