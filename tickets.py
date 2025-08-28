@@ -163,6 +163,8 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
                     available.append(title_attr)
 
             logger.info(f"Found {len(available)} available seats for {title}")
+            # Log URL with seat count next to it for easier navigation
+            logger.info(f"{url} [{len(available)}]")
             return {
                 "title": title,
                 "url": url,
