@@ -101,9 +101,14 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                 )
                 logger.info("Creating browser context")
                 context = await browser.new_context(
-                    viewport={'width': 1280, 'height': 720},
+                    viewport={'width': 1366, 'height': 768},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    ignore_https_errors=True
+                    ignore_https_errors=True,
+                    locale='ru-RU',
+                    timezone_id='Europe/Minsk',
+                    extra_http_headers={
+                        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8'
+                    }
                 )
                 logger.info("Creating new page")
                 page = await context.new_page()
@@ -112,16 +117,46 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                 try:
                     response = await page.goto(
                         AFISHA_URL,
-                        wait_until='networkidle',
+                        wait_until='domcontentloaded',
                         timeout=60000
                     )
                     if not response:
                         raise Exception("Failed to get response from page")
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
-                    logger.info("Waiting for content to load")
-                    # The page lists many shows with a 'Купить билет' link for each card
-                    await page.wait_for_selector("a:has-text('Купить билет'), a[href*='tce.by']", timeout=60000)
+                    logger.info("Waiting for content to load / links to appear")
+                    # Detect bot-protection text and wait it out if present
+                    try:
+                        protection_text = await page.query_selector("text=Making sure you're not a bot!")
+                        if protection_text:
+                            logger.info("Bot protection detected, waiting up to 60s...")
+                            await page.wait_for_selector("a[href*='tce.by'], a:has-text('Купить билет')", timeout=60000)
+                    except Exception:
+                        pass
+                    # Poll for links with light scrolling to trigger lazy content
+                    shows = []
+                    max_checks = 20
+                    for i in range(max_checks):
+                        link_elements = await page.query_selector_all("a[href*='tce.by'], a:has-text('Купить билет')")
+                        if link_elements:
+                            for link_elem in link_elements:
+                                try:
+                                    title = (await link_elem.inner_text()) or ""
+                                    href = await link_elem.get_attribute("href")
+                                    if href:
+                                        shows.append({"title": title.strip() or "Купить билет", "link": href})
+                                except Exception:
+                                    continue
+                            if shows:
+                                break
+                        # Scroll a bit and wait before next check
+                        try:
+                            await page.evaluate("window.scrollBy(0, document.documentElement.clientHeight);")
+                        except Exception:
+                            pass
+                        await asyncio.sleep(3)
+                    if not shows:
+                        raise TimeoutError("No ticket links found after polling")
                 except Exception as e:
                     # Try to capture a screenshot to aid debugging
                     try:
@@ -131,19 +166,7 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         logger.error(f"Failed to take screenshot: {shot_err}")
                     logger.error(f"Error loading page: {str(e)}")
                     raise TimeoutError(f"Timeout or error loading page: {e}")
-                logger.info("Collecting show links")
-                shows = []
-                # Prefer explicit purchase links
-                link_elements = await page.query_selector_all("a:has-text('Купить билет'), a[href*='tce.by']")
-                for link_elem in link_elements:
-                    try:
-                        title = (await link_elem.inner_text()) or ""
-                        href = await link_elem.get_attribute("href")
-                        if href:
-                            shows.append({"title": title.strip() or "Купить билет", "link": href})
-                    except Exception as e:
-                        logger.error(f"Error processing link: {e}")
-                        continue
+                logger.info("Collecting show links done")
                 logger.info("Closing browser")
                 await context.close()
                 await browser.close()
