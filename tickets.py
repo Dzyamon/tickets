@@ -20,15 +20,11 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat IDs
 
-# Base URL and show IDs
-BASE_URL = "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data="
-SHOW_IDS = [str(i) for i in range(3709, 3785)]  # IDs from 3709 to 3784
-
-# Skip specific problematic show IDs
-SKIP_SHOW_IDS = {"3775", "3774", "3762", "3759", "3747"}
-
-# Generate full URLs excluding skipped IDs
-SHOW_URLS = [BASE_URL + show_id for show_id in SHOW_IDS if show_id not in SKIP_SHOW_IDS]
+AFISHA_BASE = "https://puppet-minsk.by"
+CATEGORY_URLS = [
+    f"{AFISHA_BASE}/spektakli/spektakli-dlya-detej",
+    f"{AFISHA_BASE}/spektakli/spektakli-dlya-vzroslykh",
+]
 
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 
@@ -200,17 +196,50 @@ async def check_all_shows():
             
             logger.info("Creating browser context")
             context = await browser.new_context(
-                viewport={'width': 1280, 'height': 720},
+                viewport={'width': 1366, 'height': 768},
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                ignore_https_errors=True
+                ignore_https_errors=True,
+                locale='ru-RU',
+                timezone_id='Europe/Minsk',
+                extra_http_headers={
+                    'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8'
+                }
             )
             
             logger.info("Creating new page")
             page = await context.new_page()
-            page.set_default_timeout(20000)
+            page.set_default_timeout(30000)
+
+            # Discover ticket pages by crawling categories and show pages
+            discovered_ticket_urls = set()
+            for category_url in CATEGORY_URLS:
+                try:
+                    logger.debug(f"Opening category {category_url}")
+                    await page.goto(category_url, wait_until='domcontentloaded')
+                    # Extract links to individual show pages that contain '/item/'
+                    show_links = await page.eval_on_selector_all(
+                        "a[href*='/spektakli/']",
+                        "els => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('/item/'))"
+                    )
+                    for show_url in show_links:
+                        try:
+                            await page.goto(show_url, wait_until='domcontentloaded')
+                            # Collect ticket links pointing to tce.by
+                            ticket_links = await page.eval_on_selector_all(
+                                "a[href*='tce.by']",
+                                "els => Array.from(new Set(els.map(e => e.href)))"
+                            )
+                            for t_url in ticket_links:
+                                discovered_ticket_urls.add(t_url)
+                        except Exception as e:
+                            logger.debug(f"Skip show {show_url}: {e}")
+                            continue
+                except Exception as e:
+                    logger.debug(f"Skip category {category_url}: {e}")
+                    continue
 
             current_seats = {}
-            for url in SHOW_URLS:
+            for url in sorted(discovered_ticket_urls):
                 try:
                     show_data = await check_tickets_for_show(page, url)
                     current_seats[url] = show_data
