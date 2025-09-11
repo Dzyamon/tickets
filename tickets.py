@@ -116,14 +116,14 @@ def save_seats(seats):
 async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
     for attempt in range(max_retries):
         try:
-            logger.info(f"Loading page {url}")
+            logger.debug(f"Loading page {url}")
             response = await page.goto(url, wait_until='domcontentloaded', timeout=timeout)
             if not response:
                 raise Exception("Failed to get response from page")
             if not response.ok:
                 raise Exception(f"Page returned status {response.status}")
 
-            logger.info("Waiting for page to load and checking for bot protection...")
+            logger.debug("Waiting for page to load and checking for bot protection...")
             
             # Check if we're on the bot protection page
             try:
@@ -134,10 +134,10 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
                     await page.wait_for_selector("table#myHall td.place, h1", timeout=60000)  # Longer timeout for protection
                     logger.info("Bot protection completed")
             except Exception as e:
-                logger.info(f"No bot protection detected or already completed: {e}")
+                logger.debug(f"No bot protection detected or already completed: {e}")
             
             # Now wait for seat elements
-            logger.info("Waiting for seat elements to load...")
+            logger.debug("Waiting for seat elements to load...")
             
             # Add a small delay to let any remaining protection processes complete
             await asyncio.sleep(2)
@@ -162,9 +162,8 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
                 if title_attr and "Цена" in title_attr:
                     available.append(title_attr)
 
-            logger.info(f"Found {len(available)} available seats for {title}")
-            # Log URL with seat count next to it for easier navigation
-            logger.info(f"{url} [{len(available)}]")
+            # Single concise log line per show
+            logger.info(f"Found {len(available)} seats for {title} at {url}")
             return {
                 "title": title,
                 "url": url,
