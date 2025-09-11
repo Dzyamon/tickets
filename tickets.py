@@ -6,6 +6,7 @@ import requests
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib.parse import urljoin
 
 # Load environment variables from .env file
 load_dotenv()
@@ -210,55 +211,86 @@ async def check_all_shows():
             page = await context.new_page()
             page.set_default_timeout(30000)
 
-            # Discover ticket pages by crawling categories and show pages
+            # Discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
             discovered_ticket_urls = set()
+            discovered_show_urls = set()
             for category_url in CATEGORY_URLS:
                 try:
                     logger.debug(f"Opening category {category_url}")
-                    await page.goto(category_url, wait_until='domcontentloaded')
-                    # Extract links to individual show pages that contain '/item/'
-                    show_links = await page.eval_on_selector_all(
-                        "a[href*='/spektakli/']",
-                        "els => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('/item/'))"
-                    )
-                    for show_url in show_links:
-                        try:
-                            await page.goto(show_url, wait_until='domcontentloaded')
-                            # Collect ticket links pointing to tce.by
-                            ticket_links = await page.eval_on_selector_all(
-                                "a[href*='tce.by']",
-                                "els => Array.from(new Set(els.map(e => e.href)))"
-                            )
-                            for t_url in ticket_links:
-                                discovered_ticket_urls.add(t_url)
-                            # If none found, follow local buy links and try to extract there
-                            if not ticket_links:
-                                buy_links = await page.eval_on_selector_all(
-                                    "a:has-text('Купить у нас'), a:has-text('Купить билет')",
-                                    "els => Array.from(new Set(els.map(e => e.href))).filter(Boolean)"
-                                )
-                                for buy_url in buy_links:
-                                    try:
-                                        await page.goto(buy_url, wait_until='domcontentloaded')
-                                        # If redirected directly to tce.by
-                                        current_url = page.url
-                                        if 'tce.by' in current_url:
-                                            discovered_ticket_urls.add(current_url)
-                                        # Or present as link on the page
-                                        inner_ticket_links = await page.eval_on_selector_all(
-                                            "a[href*='tce.by']",
-                                            "els => Array.from(new Set(els.map(e => e.href)))"
-                                        )
-                                        for t_url in inner_ticket_links:
-                                            discovered_ticket_urls.add(t_url)
-                                    except Exception as e:
-                                        logger.debug(f"Skip buy link {buy_url}: {e}")
-                                        continue
-                        except Exception as e:
-                            logger.debug(f"Skip show {show_url}: {e}")
+                    visited_pages = set()
+                    pages_to_visit = [category_url]
+                    while pages_to_visit:
+                        cat_page_url = pages_to_visit.pop(0)
+                        if cat_page_url in visited_pages:
                             continue
+                        visited_pages.add(cat_page_url)
+                        await page.goto(cat_page_url, wait_until='domcontentloaded')
+                        # Attempt to scroll to load lazy content
+                        for _ in range(5):
+                            try:
+                                await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+                                await asyncio.sleep(0.5)
+                            except Exception:
+                                break
+                        # Extract links to individual show pages that contain '/item/'
+                        show_links = await page.eval_on_selector_all(
+                            "a[href]",
+                            "(els) => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('/spektakli/') && h.includes('/item/'))"
+                        )
+                        for show_url in show_links:
+                            discovered_show_urls.add(show_url)
+                        # Find pagination links on the category page
+                        pagination_links = await page.eval_on_selector_all(
+                            "a[href]",
+                            "els => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('start=') || h.includes('page='))"
+                        )
+                        for p_url in pagination_links:
+                            if p_url not in visited_pages:
+                                pages_to_visit.append(p_url)
                 except Exception as e:
                     logger.debug(f"Skip category {category_url}: {e}")
+                    continue
+
+            # Visit each discovered show page and extract ticket links
+            for show_url in sorted(discovered_show_urls):
+                try:
+                    await page.goto(show_url, wait_until='domcontentloaded')
+                    await asyncio.sleep(0.5)
+                    # Collect direct ticket links
+                    ticket_links = await page.eval_on_selector_all(
+                        "a[href*='tce.by']",
+                        "els => Array.from(new Set(els.map(e => e.href)))"
+                    )
+                    for t_url in ticket_links:
+                        discovered_ticket_urls.add(t_url)
+                    # Collect potential internal buy links by text
+                    buy_links = await page.evaluate(
+                        "() => Array.from(document.querySelectorAll('a[href]')).map(a => ({href: a.href, text: (a.textContent||'').trim()}))"
+                    )
+                    for item in buy_links:
+                        text = (item.get('text') or '').lower()
+                        href = item.get('href')
+                        if not href:
+                            continue
+                        if ('купить' in text) or ('билет' in text):
+                            # Follow this local buy link
+                            try:
+                                await page.goto(href, wait_until='domcontentloaded')
+                                await asyncio.sleep(0.5)
+                                current_url = page.url
+                                if 'tce.by' in current_url:
+                                    discovered_ticket_urls.add(current_url)
+                                inner_ticket_links = await page.eval_on_selector_all(
+                                    "a[href*='tce.by']",
+                                    "els => Array.from(new Set(els.map(e => e.href)))"
+                                )
+                                for t_url in inner_ticket_links:
+                                    discovered_ticket_urls.add(t_url)
+                            except Exception as e:
+                                logger.debug(f"Skip buy link {href}: {e}")
+                                continue
+                except Exception as e:
+                    logger.debug(f"Skip show {show_url}: {e}")
                     continue
 
             current_seats = {}
