@@ -28,6 +28,7 @@ CATEGORY_URLS = [
 ]
 
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
+SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable must be set")
@@ -109,6 +110,21 @@ def save_seats(seats):
         logger.info(f"Saved seats data for {len(seats)} shows")
     except Exception as e:
         logger.error(f"Error saving seats: {e}")
+
+def load_shows_from_afisha():
+    try:
+        if not os.path.exists(SHOWS_FILE):
+            logger.info(f"Shows file not found: {SHOWS_FILE}")
+            return []
+        with open(SHOWS_FILE, "r", encoding="utf-8") as f:
+            shows = json.load(f)
+            # Expect list of { title, link }
+            valid = [s for s in shows if isinstance(s, dict) and s.get("link")]
+            logger.info(f"Loaded {len(valid)} shows from {SHOWS_FILE}")
+            return valid
+    except Exception as e:
+        logger.error(f"Failed to load shows from {SHOWS_FILE}: {e}")
+        return []
 
 async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
     for attempt in range(max_retries):
@@ -211,45 +227,53 @@ async def check_all_shows():
             page = await context.new_page()
             page.set_default_timeout(30000)
 
-            # Discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
+            # Prefer ticket URLs from afisha output if available
             discovered_ticket_urls = set()
+            shows_from_file = load_shows_from_afisha()
+            for s in shows_from_file:
+                link = s.get("link")
+                if link and "tce.by" in link:
+                    discovered_ticket_urls.add(link)
+
+            # If none loaded from file, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
             discovered_show_urls = set()
-            for category_url in CATEGORY_URLS:
-                try:
-                    logger.debug(f"Opening category {category_url}")
-                    visited_pages = set()
-                    pages_to_visit = [category_url]
-                    while pages_to_visit:
-                        cat_page_url = pages_to_visit.pop(0)
-                        if cat_page_url in visited_pages:
-                            continue
-                        visited_pages.add(cat_page_url)
-                        await page.goto(cat_page_url, wait_until='domcontentloaded')
-                        # Attempt to scroll to load lazy content
-                        for _ in range(5):
-                            try:
-                                await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                                await asyncio.sleep(0.5)
-                            except Exception:
-                                break
-                        # Extract links to individual show pages that contain '/item/'
-                        show_links = await page.eval_on_selector_all(
-                            "a[href]",
-                            "(els) => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('/spektakli/') && h.includes('/item/'))"
-                        )
-                        for show_url in show_links:
-                            discovered_show_urls.add(show_url)
-                        # Find pagination links on the category page
-                        pagination_links = await page.eval_on_selector_all(
-                            "a[href]",
-                            "els => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('start=') || h.includes('page='))"
-                        )
-                        for p_url in pagination_links:
-                            if p_url not in visited_pages:
-                                pages_to_visit.append(p_url)
-                except Exception as e:
-                    logger.debug(f"Skip category {category_url}: {e}")
-                    continue
+            if not discovered_ticket_urls:
+                for category_url in CATEGORY_URLS:
+                    try:
+                        logger.debug(f"Opening category {category_url}")
+                        visited_pages = set()
+                        pages_to_visit = [category_url]
+                        while pages_to_visit:
+                            cat_page_url = pages_to_visit.pop(0)
+                            if cat_page_url in visited_pages:
+                                continue
+                            visited_pages.add(cat_page_url)
+                            await page.goto(cat_page_url, wait_until='domcontentloaded')
+                            # Attempt to scroll to load lazy content
+                            for _ in range(5):
+                                try:
+                                    await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+                                    await asyncio.sleep(0.5)
+                                except Exception:
+                                    break
+                            # Extract links to individual show pages that contain '/item/'
+                            show_links = await page.eval_on_selector_all(
+                                "a[href]",
+                                "(els) => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('/spektakli/') && h.includes('/item/'))"
+                            )
+                            for show_url in show_links:
+                                discovered_show_urls.add(show_url)
+                            # Find pagination links on the category page
+                            pagination_links = await page.eval_on_selector_all(
+                                "a[href]",
+                                "els => Array.from(new Set(els.map(e => e.href))).filter(h => h.includes('start=') || h.includes('page='))"
+                            )
+                            for p_url in pagination_links:
+                                if p_url not in visited_pages:
+                                    pages_to_visit.append(p_url)
+                    except Exception as e:
+                        logger.debug(f"Skip category {category_url}: {e}")
+                        continue
 
             # Visit each discovered show page and extract ticket links
             for show_url in sorted(discovered_show_urls):
