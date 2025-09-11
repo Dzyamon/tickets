@@ -231,6 +231,29 @@ async def check_all_shows():
                             )
                             for t_url in ticket_links:
                                 discovered_ticket_urls.add(t_url)
+                            # If none found, follow local buy links and try to extract there
+                            if not ticket_links:
+                                buy_links = await page.eval_on_selector_all(
+                                    "a:has-text('Купить у нас'), a:has-text('Купить билет')",
+                                    "els => Array.from(new Set(els.map(e => e.href))).filter(Boolean)"
+                                )
+                                for buy_url in buy_links:
+                                    try:
+                                        await page.goto(buy_url, wait_until='domcontentloaded')
+                                        # If redirected directly to tce.by
+                                        current_url = page.url
+                                        if 'tce.by' in current_url:
+                                            discovered_ticket_urls.add(current_url)
+                                        # Or present as link on the page
+                                        inner_ticket_links = await page.eval_on_selector_all(
+                                            "a[href*='tce.by']",
+                                            "els => Array.from(new Set(els.map(e => e.href)))"
+                                        )
+                                        for t_url in inner_ticket_links:
+                                            discovered_ticket_urls.add(t_url)
+                                    except Exception as e:
+                                        logger.debug(f"Skip buy link {buy_url}: {e}")
+                                        continue
                         except Exception as e:
                             logger.debug(f"Skip show {show_url}: {e}")
                             continue
