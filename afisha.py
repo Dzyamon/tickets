@@ -107,46 +107,42 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                 )
                 logger.info("Creating new page")
                 page = await context.new_page()
-                page.set_default_timeout(20000)
+                page.set_default_timeout(60000)
                 logger.info(f"Loading page {AFISHA_URL}")
                 try:
                     response = await page.goto(
                         AFISHA_URL,
-                        wait_until='domcontentloaded',
-                        timeout=20000
+                        wait_until='networkidle',
+                        timeout=60000
                     )
                     if not response:
                         raise Exception("Failed to get response from page")
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
                     logger.info("Waiting for content to load")
-                    await page.wait_for_selector("table", timeout=20000)
+                    # The page lists many shows with a 'Купить билет' link for each card
+                    await page.wait_for_selector("a:has-text('Купить билет'), a[href*='tce.by']", timeout=60000)
                 except Exception as e:
+                    # Try to capture a screenshot to aid debugging
+                    try:
+                        await page.screenshot(path="afisha_error.png", full_page=True)
+                        logger.error("Saved failure screenshot to afisha_error.png")
+                    except Exception as shot_err:
+                        logger.error(f"Failed to take screenshot: {shot_err}")
                     logger.error(f"Error loading page: {str(e)}")
                     raise TimeoutError(f"Timeout or error loading page: {e}")
-                logger.info("Looking for show rows in table")
-                # Find the table with show information
-                tables = await page.query_selector_all("table")
+                logger.info("Collecting show links")
                 shows = []
-                
-                for table in tables:
+                # Prefer explicit purchase links
+                link_elements = await page.query_selector_all("a:has-text('Купить билет'), a[href*='tce.by']")
+                for link_elem in link_elements:
                     try:
-                        # Look for rows that contain show information
-                        rows = await table.query_selector_all("tr")
-                        for row in rows:
-                            try:
-                                # Check if this row contains a show link
-                                link_elem = await row.query_selector("a[href*='tce.by']")
-                                if link_elem:
-                                    title = await link_elem.inner_text()
-                                    link = await link_elem.get_attribute("href")
-                                    if title and link:
-                                        shows.append({"title": title.strip(), "link": link})
-                            except Exception as e:
-                                logger.error(f"Error processing table row: {str(e)}")
-                                continue
+                        title = (await link_elem.inner_text()) or ""
+                        href = await link_elem.get_attribute("href")
+                        if href:
+                            shows.append({"title": title.strip() or "Купить билет", "link": href})
                     except Exception as e:
-                        logger.error(f"Error processing table: {str(e)}")
+                        logger.error(f"Error processing link: {e}")
                         continue
                 logger.info("Closing browser")
                 await context.close()
