@@ -30,6 +30,11 @@ CATEGORY_URLS = [
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 
+# Remote shows source (prefer remote state branch unless explicitly disabled)
+REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
+REMOTE_BRANCH = os.getenv("REMOTE_SHOWS_BRANCH", "state")
+USE_REMOTE_SHOWS = os.getenv("USE_REMOTE_SHOWS", "true").lower() in ("1", "true", "yes")
+
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable must be set")
 if not CHAT_IDS or not any(CHAT_IDS):
@@ -111,15 +116,56 @@ def save_seats(seats):
     except Exception as e:
         logger.error(f"Error saving seats: {e}")
 
+def _dedupe_shows(shows):
+    try:
+        seen = set()
+        unique = []
+        for s in shows:
+            if not isinstance(s, dict):
+                continue
+            link = s.get("link")
+            title = s.get("title", "")
+            key = (title, link)
+            if link and key not in seen:
+                seen.add(key)
+                unique.append({"title": title or "No title", "link": link})
+        return unique
+    except Exception:
+        return shows
+
+def load_shows_from_remote():
+    if not USE_REMOTE_SHOWS:
+        return []
+    try:
+        raw_url = f"https://raw.githubusercontent.com/{REMOTE_REPO}/{REMOTE_BRANCH}/shows.json"
+        logger.info(f"Fetching remote shows from {raw_url}")
+        resp = requests.get(raw_url, timeout=15)
+        if resp.status_code != 200:
+            logger.warning(f"Remote shows fetch failed with status {resp.status_code}")
+            return []
+        shows = resp.json()
+        valid = [s for s in shows if isinstance(s, dict) and s.get("link")]
+        valid = _dedupe_shows(valid)
+        logger.info(f"Loaded {len(valid)} shows from remote {REMOTE_BRANCH} branch")
+        return valid
+    except Exception as e:
+        logger.warning(f"Failed to load remote shows: {e}")
+        return []
+
 def load_shows_from_afisha():
     try:
+        # Prefer remote shows.json from the state branch
+        remote = load_shows_from_remote()
+        if remote:
+            return remote
+        # Fallback to local file
         if not os.path.exists(SHOWS_FILE):
             logger.info(f"Shows file not found: {SHOWS_FILE}")
             return []
         with open(SHOWS_FILE, "r", encoding="utf-8") as f:
             shows = json.load(f)
-            # Expect list of { title, link }
             valid = [s for s in shows if isinstance(s, dict) and s.get("link")]
+            valid = _dedupe_shows(valid)
             logger.info(f"Loaded {len(valid)} shows from {SHOWS_FILE}")
             return valid
     except Exception as e:
