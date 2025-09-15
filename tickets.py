@@ -417,7 +417,9 @@ async def check_all_shows():
                     data_attr_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const add = u => { try { if (u && u.includes('tce.by')) urls.add(u); } catch(_){} };\n                        document.querySelectorAll('[data-href],[data-url],[data-link]').forEach(el => {\n                          add(el.getAttribute('data-href'));\n                          add(el.getAttribute('data-url'));\n                          add(el.getAttribute('data-link'));\n                        });\n                        return Array.from(urls);\n                    }")
                     # Parse onclick handlers that contain tce.by
                     onclick_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        document.querySelectorAll('[onclick]').forEach(el => {\n                          const txt = el.getAttribute('onclick') || '';\n                          let m;\n                          while ((m = re.exec(txt)) !== null) { urls.add(m[1]); }\n                        });\n                        return Array.from(urls);\n                    }")
-                    extracted = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links]
+                    # Scan all text content and attributes for tce.by patterns
+                    text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
+                    extracted = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
                     for t_url in extracted:
                         discovered_ticket_urls.add(t_url)
                     # Update cache mapping for this show
@@ -426,6 +428,11 @@ async def check_all_shows():
                         for t in extracted:
                             if t not in cached_map[show_url]:
                                 cached_map[show_url].append(t)
+                    # Debug: log what we found for this show
+                    if extracted:
+                        logger.info(f"Show {show_url} -> found {len(extracted)} ticket links: {extracted[:3]}{'...' if len(extracted) > 3 else ''}")
+                    else:
+                        logger.warning(f"Show {show_url} -> no ticket links found")
                     # Collect potential internal buy links by text
                     buy_links = await page.evaluate(
                         "() => Array.from(document.querySelectorAll('a[href]')).map(a => ({href: a.href, text: (a.textContent||'').trim()}))"
