@@ -227,17 +227,22 @@ async def check_all_shows():
             page = await context.new_page()
             page.set_default_timeout(30000)
 
-            # Prefer ticket URLs from afisha output if available
+            # Seed URLs from shows file (state). Use direct tce links as tickets,
+            # and non-tce links as show pages to resolve their ticket links.
             discovered_ticket_urls = set()
+            discovered_show_urls = set()
             shows_from_file = load_shows_from_afisha()
             for s in shows_from_file:
                 link = s.get("link")
-                if link and "tce.by" in link:
+                if not link:
+                    continue
+                if "tce.by" in link:
                     discovered_ticket_urls.add(link)
+                else:
+                    discovered_show_urls.add(link)
 
             # If none loaded from file, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
-            discovered_show_urls = set()
-            if not discovered_ticket_urls:
+            if not discovered_ticket_urls and not discovered_show_urls:
                 for category_url in CATEGORY_URLS:
                     try:
                         logger.debug(f"Opening category {category_url}")
