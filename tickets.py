@@ -282,10 +282,12 @@ async def check_all_shows():
                 link = s.get("link")
                 if not link:
                     continue
-                if "tce.by" in link:
-                    discovered_ticket_urls.add(link)
+                # Normalize relative links from puppet-minsk to absolute
+                normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+                if "tce.by" in normalized_link:
+                    discovered_ticket_urls.add(normalized_link)
                 else:
-                    discovered_show_urls.add(link)
+                    discovered_show_urls.add(normalized_link)
 
             # If none loaded from file, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
             if not discovered_ticket_urls and not discovered_show_urls:
