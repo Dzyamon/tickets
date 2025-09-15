@@ -75,9 +75,11 @@ jobs:
         git checkout state
         cp shows.json /tmp/shows.json || echo "No previous shows.json"
         cp seats.json /tmp/seats.json || echo "No previous seats.json"
+        cp tickets_cache.json /tmp/tickets_cache.json || echo "No previous tickets_cache.json"
         git checkout $GITHUB_REF_NAME
         cp /tmp/shows.json shows.json || echo "No previous shows.json in /tmp"
         cp /tmp/seats.json seats.json || echo "No previous seats.json in /tmp"
+        cp /tmp/tickets_cache.json tickets_cache.json || echo "No previous tickets_cache.json in /tmp"
 
     - name: List files before script
       run: ls -l
@@ -92,17 +94,19 @@ jobs:
       run: |
         cp shows.json /tmp/shows.json || true
         cp seats.json /tmp/seats.json || true
+        cp tickets_cache.json /tmp/tickets_cache.json || true
 
     - name: Commit and push updated shows.json and seats.json to state branch
       run: |
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        rm -f shows.json seats.json
+        rm -f shows.json seats.json tickets_cache.json
         git checkout state
         cp /tmp/shows.json shows.json || true
         cp /tmp/seats.json seats.json || true
-        git add shows.json seats.json || true
-        git commit -m "Update shows/seats state [skip ci]" || echo "No changes to commit"
+        cp /tmp/tickets_cache.json tickets_cache.json || true
+        git add shows.json seats.json tickets_cache.json || true
+        git commit -m "Update shows/seats/cache state [skip ci]" || echo "No changes to commit"
         git push origin state
-        rm -f shows.json seats.json
+        rm -f shows.json seats.json tickets_cache.json
         git checkout $GITHUB_REF_NAME 

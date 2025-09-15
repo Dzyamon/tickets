@@ -29,6 +29,7 @@ CATEGORY_URLS = [
 
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
+TICKETS_CACHE_FILE = "local_tickets_cache.json" if os.getenv("GITHUB_ACTIONS") != "true" else "tickets_cache.json"
 
 # Remote shows source (prefer remote state branch unless explicitly disabled)
 REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
@@ -152,6 +153,37 @@ def _dedupe_shows(shows):
         return unique
     except Exception:
         return shows
+
+def load_tickets_cache():
+    try:
+        if not os.path.exists(TICKETS_CACHE_FILE):
+            return {"ticket_urls": [], "show_to_tickets": {}}
+        with open(TICKETS_CACHE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # Normalize shapes
+            ticket_urls = list({u for u in (data.get("ticket_urls") or []) if isinstance(u, str)})
+            show_to_tickets = data.get("show_to_tickets") or {}
+            if not isinstance(show_to_tickets, dict):
+                show_to_tickets = {}
+            # Ensure all values are lists of strings
+            cleaned_map = {}
+            for k, v in show_to_tickets.items():
+                if not isinstance(k, str):
+                    continue
+                if isinstance(v, list):
+                    cleaned_map[k] = [s for s in v if isinstance(s, str)]
+            return {"ticket_urls": ticket_urls, "show_to_tickets": cleaned_map}
+    except Exception as e:
+        logger.debug(f"Failed to load tickets cache: {e}")
+        return {"ticket_urls": [], "show_to_tickets": {}}
+
+def save_tickets_cache(cache_data):
+    try:
+        with open(TICKETS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved tickets cache with {len(cache_data.get('ticket_urls', []))} urls")
+    except Exception as e:
+        logger.warning(f"Failed to save tickets cache: {e}")
 
 def load_shows_from_remote():
     if not USE_REMOTE_SHOWS:
@@ -309,8 +341,19 @@ async def check_all_shows():
                 else:
                     discovered_show_urls.add(normalized_link)
 
-            # If none loaded from file, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
-            if not discovered_ticket_urls and not discovered_show_urls:
+            # Load cache and seed from it for speed
+            cache = load_tickets_cache()
+            cached_ticket_urls = set(cache.get("ticket_urls") or [])
+            cached_map = cache.get("show_to_tickets") or {}
+
+            # Reuse cached mapping for known show pages
+            for show_url in list(discovered_show_urls):
+                if show_url in cached_map:
+                    for t in cached_map.get(show_url, []):
+                        discovered_ticket_urls.add(t)
+
+            # If still nothing, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
+            if not discovered_ticket_urls and not discovered_show_urls and not cached_ticket_urls:
                 for category_url in CATEGORY_URLS:
                     try:
                         logger.debug(f"Opening category {category_url}")
@@ -377,8 +420,15 @@ async def check_all_shows():
                     data_attr_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const add = u => { try { if (u && u.includes('tce.by')) urls.add(u); } catch(_){} };\n                        document.querySelectorAll('[data-href],[data-url],[data-link]').forEach(el => {\n                          add(el.getAttribute('data-href'));\n                          add(el.getAttribute('data-url'));\n                          add(el.getAttribute('data-link'));\n                        });\n                        return Array.from(urls);\n                    }")
                     # Parse onclick handlers that contain tce.by
                     onclick_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        document.querySelectorAll('[onclick]').forEach(el => {\n                          const txt = el.getAttribute('onclick') || '';\n                          let m;\n                          while ((m = re.exec(txt)) !== null) { urls.add(m[1]); }\n                        });\n                        return Array.from(urls);\n                    }")
-                    for t_url in [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links]:
+                    extracted = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links]
+                    for t_url in extracted:
                         discovered_ticket_urls.add(t_url)
+                    # Update cache mapping for this show
+                    if extracted:
+                        cached_map.setdefault(show_url, [])
+                        for t in extracted:
+                            if t not in cached_map[show_url]:
+                                cached_map[show_url].append(t)
                     # Collect potential internal buy links by text
                     buy_links = await page.evaluate(
                         "() => Array.from(document.querySelectorAll('a[href]')).map(a => ({href: a.href, text: (a.textContent||'').trim()}))"
@@ -408,8 +458,14 @@ async def check_all_shows():
                                     "iframe[src*='tce.by']",
                                     "els => Array.from(new Set(els.map(e => e.src)))"
                                 )
-                                for t_url in [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]:
+                                extracted_inner = [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]
+                                for t_url in extracted_inner:
                                     discovered_ticket_urls.add(t_url)
+                                if extracted_inner:
+                                    cached_map.setdefault(show_url, [])
+                                    for t in extracted_inner:
+                                        if t not in cached_map[show_url]:
+                                            cached_map[show_url].append(t)
                             except Exception as e:
                                 logger.debug(f"Skip buy link {href}: {e}")
                                 continue
@@ -417,11 +473,13 @@ async def check_all_shows():
                     logger.debug(f"Skip show {show_url}: {e}")
                     continue
 
-            # Log how many ticket pages were discovered
-            logger.info(f"Discovered {len(discovered_ticket_urls)} ticket pages from {len(discovered_show_urls)} show pages")
+            # Merge with cached urls and save cache
+            all_ticket_urls = sorted(set(list(discovered_ticket_urls) + list(cached_ticket_urls)))
+            logger.info(f"Discovered {len(discovered_ticket_urls)} ticket pages from {len(discovered_show_urls)} show pages (cache total {len(all_ticket_urls)})")
+            save_tickets_cache({"ticket_urls": all_ticket_urls, "show_to_tickets": cached_map})
 
             current_seats = {}
-            for url in sorted(discovered_ticket_urls):
+            for url in all_ticket_urls:
                 try:
                     show_data = await check_tickets_for_show(page, url)
                     current_seats[url] = show_data
