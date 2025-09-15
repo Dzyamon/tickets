@@ -6,7 +6,7 @@ import requests
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -116,19 +116,39 @@ def save_seats(seats):
     except Exception as e:
         logger.error(f"Error saving seats: {e}")
 
+def _is_afisha_path(link: str) -> bool:
+    try:
+        if not link:
+            return False
+        # Consider both relative and absolute forms referring to /afisha
+        if link.strip() == "/afisha":
+            return True
+        parsed = urlparse(link)
+        if parsed.scheme in ("http", "https"):
+            return parsed.path.rstrip("/") == "/afisha"
+        # Relative non-empty not exactly '/afisha' already handled
+        return False
+    except Exception:
+        return False
+
 def _dedupe_shows(shows):
     try:
-        seen = set()
+        seen_links = set()
         unique = []
         for s in shows:
             if not isinstance(s, dict):
                 continue
             link = s.get("link")
             title = s.get("title", "")
-            key = (title, link)
-            if link and key not in seen:
-                seen.add(key)
-                unique.append({"title": title or "No title", "link": link})
+            if not link:
+                continue
+            # Normalize to absolute for dedupe and filtering
+            normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+            if _is_afisha_path(normalized_link) or _is_afisha_path(link):
+                continue
+            if normalized_link not in seen_links:
+                seen_links.add(normalized_link)
+                unique.append({"title": title or "No title", "link": normalized_link})
         return unique
     except Exception:
         return shows

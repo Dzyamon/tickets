@@ -6,6 +6,7 @@ import requests
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+from urllib.parse import urljoin, urlparse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,7 +18,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-AFISHA_URL = "https://puppet-minsk.by/afisha"
+AFISHA_BASE = "https://puppet-minsk.by"
+AFISHA_URL = f"{AFISHA_BASE}/afisha"
 # Use different file names for local and GitHub Actions environments
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -197,10 +199,42 @@ def load_previous_shows():
         logger.error(f"Error loading previous shows: {e}")
         return []
 
+def _is_afisha_path(link: str) -> bool:
+    try:
+        if not link:
+            return False
+        if link.strip() == "/afisha":
+            return True
+        parsed = urlparse(link)
+        if parsed.scheme in ("http", "https"):
+            return parsed.path.rstrip("/") == "/afisha"
+        return False
+    except Exception:
+        return False
+
+def _dedupe_normalize_filter(shows):
+    seen = set()
+    result = []
+    for s in shows:
+        if not isinstance(s, dict):
+            continue
+        link = s.get("link")
+        title = s.get("title", "") or "No title"
+        if not link:
+            continue
+        normalized = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+        if _is_afisha_path(link) or _is_afisha_path(normalized):
+            continue
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append({"title": title, "link": normalized})
+    return result
+
 def save_shows(shows):
     try:
+        clean = _dedupe_normalize_filter(shows)
         with open(SHOWS_FILE, "w", encoding="utf-8") as f:
-            json.dump(shows, f, ensure_ascii=False, indent=2)
+            json.dump(clean, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved {len(shows)} shows to {SHOWS_FILE}")
     except Exception as e:
         logger.error(f"Error saving shows: {e}")
