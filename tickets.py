@@ -284,13 +284,32 @@ async def check_all_shows():
             for show_url in sorted(discovered_show_urls):
                 try:
                     await page.goto(show_url, wait_until='domcontentloaded')
-                    await asyncio.sleep(0.5)
+                    # Let dynamic content render
+                    await page.wait_for_timeout(1000)
+                    try:
+                        await page.wait_for_load_state('networkidle', timeout=3000)
+                    except Exception:
+                        pass
                     # Collect direct ticket links
                     ticket_links = await page.eval_on_selector_all(
                         "a[href*='tce.by']",
                         "els => Array.from(new Set(els.map(e => e.href)))"
                     )
-                    for t_url in ticket_links:
+                    # Collect specific shows.html links
+                    ticket_links_shows = await page.eval_on_selector_all(
+                        "a[href*='tce.by/shows.html']",
+                        "els => Array.from(new Set(els.map(e => e.href)))"
+                    )
+                    # Collect iframe srcs that point to tce.by
+                    iframe_links = await page.eval_on_selector_all(
+                        "iframe[src*='tce.by']",
+                        "els => Array.from(new Set(els.map(e => e.src)))"
+                    )
+                    # Collect URLs from data-* attributes commonly used
+                    data_attr_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const add = u => { try { if (u && u.includes('tce.by')) urls.add(u); } catch(_){} };\n                        document.querySelectorAll('[data-href],[data-url],[data-link]').forEach(el => {\n                          add(el.getAttribute('data-href'));\n                          add(el.getAttribute('data-url'));\n                          add(el.getAttribute('data-link'));\n                        });\n                        return Array.from(urls);\n                    }")
+                    # Parse onclick handlers that contain tce.by
+                    onclick_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        document.querySelectorAll('[onclick]').forEach(el => {\n                          const txt = el.getAttribute('onclick') || '';\n                          let m;\n                          while ((m = re.exec(txt)) !== null) { urls.add(m[1]); }\n                        });\n                        return Array.from(urls);\n                    }")
+                    for t_url in [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links]:
                         discovered_ticket_urls.add(t_url)
                     # Collect potential internal buy links by text
                     buy_links = await page.evaluate(
@@ -305,7 +324,7 @@ async def check_all_shows():
                             # Follow this local buy link
                             try:
                                 await page.goto(href, wait_until='domcontentloaded')
-                                await asyncio.sleep(0.5)
+                                await page.wait_for_timeout(800)
                                 current_url = page.url
                                 if 'tce.by' in current_url:
                                     discovered_ticket_urls.add(current_url)
@@ -313,7 +332,15 @@ async def check_all_shows():
                                     "a[href*='tce.by']",
                                     "els => Array.from(new Set(els.map(e => e.href)))"
                                 )
-                                for t_url in inner_ticket_links:
+                                inner_shows_links = await page.eval_on_selector_all(
+                                    "a[href*='tce.by/shows.html']",
+                                    "els => Array.from(new Set(els.map(e => e.href)))"
+                                )
+                                inner_iframe_links = await page.eval_on_selector_all(
+                                    "iframe[src*='tce.by']",
+                                    "els => Array.from(new Set(els.map(e => e.src)))"
+                                )
+                                for t_url in [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]:
                                     discovered_ticket_urls.add(t_url)
                             except Exception as e:
                                 logger.debug(f"Skip buy link {href}: {e}")
@@ -321,6 +348,9 @@ async def check_all_shows():
                 except Exception as e:
                     logger.debug(f"Skip show {show_url}: {e}")
                     continue
+
+            # Log how many ticket pages were discovered
+            logger.info(f"Discovered {len(discovered_ticket_urls)} ticket pages from {len(discovered_show_urls)} show pages")
 
             current_seats = {}
             for url in sorted(discovered_ticket_urls):
