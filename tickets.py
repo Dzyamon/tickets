@@ -132,27 +132,28 @@ def _is_afisha_path(link: str) -> bool:
     except Exception:
         return False
 
-def _dedupe_shows(shows):
+def _normalize_filter_dedupe_links(items):
     try:
-        seen_links = set()
-        unique = []
-        for s in shows:
-            if not isinstance(s, dict):
+        seen = set()
+        links = []
+        for it in items or []:
+            if isinstance(it, str):
+                raw = it
+            elif isinstance(it, dict):
+                raw = it.get("link")
+            else:
                 continue
-            link = s.get("link")
-            title = s.get("title", "")
-            if not link:
+            if not raw:
                 continue
-            # Normalize to absolute for dedupe and filtering
-            normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
-            if _is_afisha_path(normalized_link) or _is_afisha_path(link):
+            normalized = raw if raw.startswith("http") else urljoin(AFISHA_BASE, raw)
+            if _is_afisha_path(raw) or _is_afisha_path(normalized):
                 continue
-            if normalized_link not in seen_links:
-                seen_links.add(normalized_link)
-                unique.append({"title": title or "No title", "link": normalized_link})
-        return unique
+            if normalized not in seen:
+                seen.add(normalized)
+                links.append(normalized)
+        return links
     except Exception:
-        return shows
+        return []
 
 def load_tickets_cache():
     try:
@@ -195,11 +196,10 @@ def load_shows_from_remote():
         if resp.status_code != 200:
             logger.warning(f"Remote shows fetch failed with status {resp.status_code}")
             return []
-        shows = resp.json()
-        valid = [s for s in shows if isinstance(s, dict) and s.get("link")]
-        valid = _dedupe_shows(valid)
-        logger.info(f"Loaded {len(valid)} shows from remote {REMOTE_BRANCH} branch")
-        return valid
+        shows_raw = resp.json()
+        links = _normalize_filter_dedupe_links(shows_raw)
+        logger.info(f"Loaded {len(links)} shows from remote {REMOTE_BRANCH} branch")
+        return links
     except Exception as e:
         logger.warning(f"Failed to load remote shows: {e}")
         return []
@@ -215,11 +215,10 @@ def load_shows_from_afisha():
             logger.info(f"Shows file not found: {SHOWS_FILE}")
             return []
         with open(SHOWS_FILE, "r", encoding="utf-8") as f:
-            shows = json.load(f)
-            valid = [s for s in shows if isinstance(s, dict) and s.get("link")]
-            valid = _dedupe_shows(valid)
-            logger.info(f"Loaded {len(valid)} shows from {SHOWS_FILE}")
-            return valid
+            shows_raw = json.load(f)
+            links = _normalize_filter_dedupe_links(shows_raw)
+            logger.info(f"Loaded {len(links)} shows from {SHOWS_FILE}")
+            return links
     except Exception as e:
         logger.error(f"Failed to load shows from {SHOWS_FILE}: {e}")
         return []
@@ -330,11 +329,9 @@ async def check_all_shows():
             discovered_ticket_urls = set()
             discovered_show_urls = set()
             shows_from_file = load_shows_from_afisha()
-            for s in shows_from_file:
-                link = s.get("link")
+            for link in shows_from_file:
                 if not link:
                     continue
-                # Normalize relative links from puppet-minsk to absolute
                 normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
                 if "tce.by" in normalized_link:
                     discovered_ticket_urls.add(normalized_link)

@@ -212,14 +212,15 @@ def _is_afisha_path(link: str) -> bool:
     except Exception:
         return False
 
-def _dedupe_normalize_filter(shows):
+def _dedupe_normalize_filter_to_links(shows):
     seen = set()
     result = []
     for s in shows:
-        if not isinstance(s, dict):
-            continue
-        link = s.get("link")
-        title = s.get("title", "") or "No title"
+        link = None
+        if isinstance(s, dict):
+            link = s.get("link")
+        elif isinstance(s, str):
+            link = s
         if not link:
             continue
         normalized = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
@@ -227,15 +228,15 @@ def _dedupe_normalize_filter(shows):
             continue
         if normalized not in seen:
             seen.add(normalized)
-            result.append({"title": title, "link": normalized})
+            result.append(normalized)
     return result
 
 def save_shows(shows):
     try:
-        clean = _dedupe_normalize_filter(shows)
+        clean_links = _dedupe_normalize_filter_to_links(shows)
         with open(SHOWS_FILE, "w", encoding="utf-8") as f:
-            json.dump(clean, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved {len(shows)} shows to {SHOWS_FILE}")
+            json.dump(clean_links, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(clean_links)} shows to {SHOWS_FILE}")
     except Exception as e:
         logger.error(f"Error saving shows: {e}")
 
