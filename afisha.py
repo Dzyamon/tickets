@@ -171,7 +171,11 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                 logger.info("Closing browser")
                 await context.close()
                 await browser.close()
-                logger.info(f"Successfully retrieved {len(shows)} shows")
+                try:
+                    unique_links = _dedupe_normalize_filter_to_links(shows)
+                    logger.info(f"Successfully retrieved {len(shows)} shows ({len(unique_links)} unique)")
+                except Exception:
+                    logger.info(f"Successfully retrieved {len(shows)} shows")
                 return shows
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
@@ -273,7 +277,11 @@ def find_new_shows(old, new):
         seen_in_result.add(normalized)
         result_links.append(normalized)
 
-    logger.info(f"Found {len(result_links)} new shows out of {len(new)} total shows")
+    try:
+        unique_new_normalized = _dedupe_normalize_filter_to_links(new)
+        logger.info(f"Found {len(result_links)} new shows out of {len(unique_new_normalized)} unique shows")
+    except Exception:
+        logger.info(f"Found {len(result_links)} new shows out of {len(new)} total shows")
     return result_links
 
 def main():
