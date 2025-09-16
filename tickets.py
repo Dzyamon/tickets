@@ -428,9 +428,9 @@ async def check_all_shows():
                         for t in extracted:
                             if t not in cached_map[show_url]:
                                 cached_map[show_url].append(t)
-                    # Debug: log what we found for this show
+                    # Summary log for this show (no full link listing)
                     if extracted:
-                        logger.info(f"Show {show_url} -> found {len(extracted)} ticket links: {extracted[:3]}{'...' if len(extracted) > 3 else ''}")
+                        logger.info(f"Show {show_url} -> found {len(set(extracted))} ticket links")
                     else:
                         logger.warning(f"Show {show_url} -> no ticket links found")
                     # Collect potential internal buy links by text
