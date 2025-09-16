@@ -143,10 +143,9 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         if link_elements:
                             for link_elem in link_elements:
                                 try:
-                                    title = (await link_elem.inner_text()) or ""
                                     href = await link_elem.get_attribute("href")
                                     if href:
-                                        shows.append({"title": title.strip() or "Купить билет", "link": href})
+                                        shows.append(href)
                                 except Exception:
                                     continue
                             if shows:
@@ -241,10 +240,41 @@ def save_shows(shows):
         logger.error(f"Error saving shows: {e}")
 
 def find_new_shows(old, new):
-    old_set = set((item["title"], item["link"]) for item in old)
-    new_shows = [item for item in new if (item["title"], item["link"]) not in old_set]
-    logger.info(f"Found {len(new_shows)} new shows out of {len(new)} total shows")
-    return new_shows
+    """Return list[str] of normalized links that are new compared to `old`.
+
+    Accepts `old` and `new` as lists of either strings (links) or dicts with a
+    `link` key. Always returns a list of normalized absolute link strings.
+    Filters out `/afisha` path entries.
+    """
+    def extract_link(entry):
+        if isinstance(entry, dict):
+            return entry.get("link")
+        if isinstance(entry, str):
+            return entry
+        return None
+
+    # Normalize and collect old links
+    old_links_normalized = set(_dedupe_normalize_filter_to_links(old))
+
+    # Normalize new items and collect only those not present in old
+    result_links = []
+    seen_in_result = set()
+    for item in new:
+        link = extract_link(item)
+        if not link:
+            continue
+        normalized = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+        if _is_afisha_path(link) or _is_afisha_path(normalized):
+            continue
+        if normalized in old_links_normalized:
+            continue
+        if normalized in seen_in_result:
+            continue
+        seen_in_result.add(normalized)
+        result_links.append(normalized)
+
+    logger.info(f"Found {len(result_links)} new shows out of {len(new)} total shows")
+    return result_links
 
 def main():
     try:
@@ -286,19 +316,17 @@ def main():
         new_shows = find_new_shows(previous_shows, current_shows)
         
         if new_shows:
-            # Create a more concise message format
+            # Create a concise message with links only
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
+
             if len(new_shows) <= 10:
-                # For small numbers of shows, list them all
-                show_list = "\n".join(f"• {show['title']}\n  {show['link']}" for show in new_shows)
+                show_list = "\n".join(f"• {link}" for link in new_shows)
                 msg = f"🎭 New shows added at {timestamp}:\n\n{show_list}"
             else:
-                # For many shows, provide a summary and list first few
-                first_shows = "\n".join(f"• {show['title']}\n  {show['link']}" for show in new_shows[:5])
+                first_shows = "\n".join(f"• {link}" for link in new_shows[:5])
                 remaining_count = len(new_shows) - 5
                 msg = f"🎭 {len(new_shows)} new shows added at {timestamp}:\n\n{first_shows}\n\n... and {remaining_count} more shows"
-            
+
             logger.info(f"Found {len(new_shows)} new shows")
             send_telegram_message(msg)
             save_shows(current_shows)
