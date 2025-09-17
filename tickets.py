@@ -179,6 +179,14 @@ def _only_string_urls(items):
     except Exception:
         return []
 
+def _strip_fragment(url: str) -> str:
+    try:
+        if isinstance(url, str):
+            return url.split('#')[0]
+        return url
+    except Exception:
+        return url
+
 def _is_tce_show_link(url: str) -> bool:
     try:
         if not isinstance(url, str) or not url:
@@ -506,7 +514,7 @@ async def check_all_shows():
                     # Scan all text content and attributes for tce.by patterns
                     text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
                     extracted_raw = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
-                    extracted = [u for u in _only_string_urls(extracted_raw) if _is_tce_show_link(u)]
+                    extracted = [ _strip_fragment(u) for u in _only_string_urls(extracted_raw) if _is_tce_show_link(u) ]
                     found_links_for_log = set(extracted)
                     for t_url in extracted:
                         if isinstance(t_url, str):
@@ -534,7 +542,7 @@ async def check_all_shows():
                     for u in [*(partner_anchor_links or []), *(partner_iframe_links or []), *(partner_data_attr_links or [])]:
                         try:
                             if isinstance(u, str) and _is_partner_url(u):
-                                partner_candidates.append(u)
+                                partner_candidates.append(_strip_fragment(u))
                         except Exception:
                             pass
                     if partner_candidates:
@@ -564,7 +572,7 @@ async def check_all_shows():
                                 await page.wait_for_timeout(800)
                                 current_url = page.url
                                 if isinstance(current_url, str) and _is_tce_show_link(current_url):
-                                    discovered_ticket_urls.add(current_url)
+                                    discovered_ticket_urls.add(_strip_fragment(current_url))
                                 inner_ticket_links = await page.eval_on_selector_all(
                                     "a[href]",
                                     "(els) => Array.from(new Set(els.map(e => e.href)))"
@@ -579,7 +587,7 @@ async def check_all_shows():
                                 )
                                 # Filter inner links by partner domains
                                 inner_all = [*(inner_ticket_links or []), *(inner_shows_links or []), *(inner_iframe_links or [])]
-                                extracted_inner = [u for u in inner_all if isinstance(u, str) and _is_tce_show_link(u)]
+                                extracted_inner = [ _strip_fragment(u) for u in inner_all if isinstance(u, str) and _is_tce_show_link(u) ]
                                 for t_url in extracted_inner:
                                     discovered_ticket_urls.add(t_url)
                                 if extracted_inner:
@@ -623,7 +631,10 @@ async def check_all_shows():
                 pass
 
             # Merge with cached urls and save cache
-            all_ticket_urls = sorted(set(list(discovered_ticket_urls) + list(cached_ticket_urls)))
+            # Normalize by stripping fragments to avoid duplicates like trailing '#'
+            all_ticket_urls = sorted(set([_strip_fragment(u) for u in list(discovered_ticket_urls)] + [
+                _strip_fragment(u) for u in list(cached_ticket_urls)
+            ]))
             logger.info(f"Discovered {len(discovered_ticket_urls)} ticket pages from {len(discovered_show_urls)} show pages (cache total {len(all_ticket_urls)})")
             save_tickets_cache({"ticket_urls": all_ticket_urls, "show_to_tickets": cached_map})
 
