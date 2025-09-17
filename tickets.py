@@ -536,6 +536,21 @@ async def check_all_shows():
                     text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
                     extracted_raw = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
                     extracted = [ _strip_fragment(u) for u in _only_string_urls(extracted_raw) if _is_tce_show_link(u) ]
+                    # Poll and scroll lightly to ensure lazy content anchors appear
+                    try:
+                        for _ in range(3):
+                            await page.evaluate("window.scrollBy(0, document.body.scrollHeight/2)")
+                            await page.wait_for_timeout(300)
+                            more_links = await page.eval_on_selector_all(
+                                "a[href*='tce.by/shows.html']",
+                                "els => Array.from(new Set(els.map(e => e.href)))"
+                            )
+                            for u in _only_string_urls(more_links):
+                                u_nf = _strip_fragment(u)
+                                if _is_tce_show_link(u_nf) and u_nf not in extracted:
+                                    extracted.append(u_nf)
+                    except Exception:
+                        pass
                     found_links_for_log = set(extracted)
                     for t_url in extracted:
                         if isinstance(t_url, str):
@@ -587,6 +602,15 @@ async def check_all_shows():
                         if not href:
                             continue
                         if ('купить' in text) or ('билет' in text):
+                            # If the href already points to a tce shows link, record without navigation
+                            if isinstance(href, str) and _is_tce_show_link(href):
+                                href_nf = _strip_fragment(href)
+                                discovered_ticket_urls.add(href_nf)
+                                cached_map.setdefault(visit_url, [])
+                                if href_nf not in cached_map[visit_url]:
+                                    cached_map[visit_url].append(href_nf)
+                                found_links_for_log.add(href_nf)
+                                continue
                             # Follow this local buy link
                             try:
                                 await page.goto(href, wait_until='domcontentloaded')
