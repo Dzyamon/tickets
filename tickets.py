@@ -329,14 +329,25 @@ async def check_all_shows():
             discovered_ticket_urls = set()
             discovered_show_urls = set()
             shows_from_file = load_shows_from_afisha()
+            seeded_direct_ticket_urls = set()
             for link in shows_from_file:
                 if not link:
                     continue
                 normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
                 if "tce.by" in normalized_link:
                     discovered_ticket_urls.add(normalized_link)
+                    seeded_direct_ticket_urls.add(normalized_link)
                 else:
                     discovered_show_urls.add(normalized_link)
+
+            # Clarify seeding breakdown: many remote links can be direct ticket pages
+            logger.info(
+                f"Seeded {len(discovered_show_urls)} show pages and {len(discovered_ticket_urls)} direct ticket pages from shows source"
+            )
+
+            # For parity with show-page logs, list each seeded direct ticket as a single-link result
+            for direct_url in sorted(seeded_direct_ticket_urls):
+                logger.info(f"Show {direct_url} -> found 1 ticket link (direct)")
 
             # Load cache and seed from it for speed
             cache = load_tickets_cache()
