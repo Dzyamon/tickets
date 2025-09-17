@@ -344,11 +344,13 @@ async def check_all_shows():
                 if not link:
                     continue
                 normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+                # Strip any URL fragment for show pages
+                normalized_link_no_fragment = normalized_link.split('#')[0] if isinstance(normalized_link, str) else normalized_link
                 if "tce.by" in normalized_link:
                     discovered_ticket_urls.add(normalized_link)
                     seeded_direct_ticket_urls.add(normalized_link)
                 else:
-                    discovered_show_urls.add(normalized_link)
+                    discovered_show_urls.add(normalized_link_no_fragment)
 
             # Clarify seeding breakdown: many remote links can be direct ticket pages
             logger.info(
@@ -415,10 +417,8 @@ async def check_all_shows():
             failures = {}
             for show_url in sorted(discovered_show_urls):
                 try:
-                    logger.info(f"Visiting show page {show_url}")
                     visit_url = show_url.split('#')[0] if isinstance(show_url, str) else show_url
-                    if visit_url != show_url:
-                        logger.debug(f"Stripped fragment: navigating to {visit_url}")
+                    logger.info(f"Visiting show page {visit_url}")
                     await page.goto(visit_url, wait_until='domcontentloaded')
                     # Let dynamic content render
                     await page.wait_for_timeout(1000)
@@ -449,23 +449,16 @@ async def check_all_shows():
                     text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
                     extracted_raw = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
                     extracted = _only_string_urls(extracted_raw)
+                    found_links_for_log = set(extracted)
                     for t_url in extracted:
                         if isinstance(t_url, str):
                             discovered_ticket_urls.add(t_url)
                     # Update cache mapping for this show
                     if extracted:
-                        cached_map.setdefault(show_url, [])
+                        cached_map.setdefault(visit_url, [])
                         for t in extracted:
-                            if t not in cached_map[show_url]:
-                                cached_map[show_url].append(t)
-                    # Summary log for this show (no full link listing)
-                    unique_count = len(set(extracted))
-                    if unique_count:
-                        logger.info(f"Show {show_url} -> found {unique_count} ticket links")
-                        success_with_links[show_url] = unique_count
-                    else:
-                        logger.warning(f"Show {show_url} -> no ticket links found")
-                        success_no_links.add(show_url)
+                            if isinstance(t, str) and t not in cached_map[visit_url]:
+                                cached_map[visit_url].append(t)
                     # Collect potential internal buy links by text
                     buy_links = await page.evaluate(
                         "() => Array.from(document.querySelectorAll('a[href]')).map(a => ({href: a.href, text: (a.textContent||'').trim()}))"
@@ -501,16 +494,26 @@ async def check_all_shows():
                                     if isinstance(t_url, str):
                                         discovered_ticket_urls.add(t_url)
                                 if extracted_inner:
-                                    cached_map.setdefault(show_url, [])
+                                    cached_map.setdefault(visit_url, [])
                                     for t in extracted_inner:
-                                        if isinstance(t, str) and t not in cached_map[show_url]:
-                                            cached_map[show_url].append(t)
+                                        if isinstance(t, str) and t not in cached_map[visit_url]:
+                                            cached_map[visit_url].append(t)
+                                for t in extracted_inner:
+                                    found_links_for_log.add(t)
                             except Exception as e:
                                 logger.debug(f"Skip buy link {href}: {e}")
                                 continue
+                    # Summary log for this show after all attempts
+                    unique_count = len({t for t in found_links_for_log if isinstance(t, str)})
+                    if unique_count:
+                        logger.info(f"Show {visit_url} -> found {unique_count} ticket links")
+                        success_with_links[visit_url] = unique_count
+                    else:
+                        logger.warning(f"Show {visit_url} -> no ticket links found")
+                        success_no_links.add(visit_url)
                 except Exception as e:
-                    failures[show_url] = str(e)
-                    logger.warning(f"Skip show {show_url}: {e}")
+                    failures[visit_url if 'visit_url' in locals() else show_url] = str(e)
+                    logger.warning(f"Skip show {visit_url if 'visit_url' in locals() else show_url}: {e}")
                     continue
 
             # End-of-crawl summary for show pages
