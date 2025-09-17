@@ -27,6 +27,26 @@ CATEGORY_URLS = [
     f"{AFISHA_BASE}/spektakli/spektakli-dlya-vzroslykh",
 ]
 
+# External ticketing partner domains to detect
+PARTNER_DOMAINS = [
+    "tce.by",
+    "ticketpro.by",
+    "bycard.by",
+    "kvitki.by",
+    "bilety.by",
+    "bilets.by",
+    "afisha.by",
+]
+
+def _is_partner_url(url: str) -> bool:
+    try:
+        if not isinstance(url, str) or not url:
+            return False
+        u = url.lower()
+        return any(domain in u for domain in PARTNER_DOMAINS)
+    except Exception:
+        return False
+
 SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "seats.json"
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 TICKETS_CACHE_FILE = "local_tickets_cache.json" if os.getenv("GITHUB_ACTIONS") != "true" else "tickets_cache.json"
@@ -346,7 +366,7 @@ async def check_all_shows():
                 normalized_link = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
                 # Strip any URL fragment for show pages
                 normalized_link_no_fragment = normalized_link.split('#')[0] if isinstance(normalized_link, str) else normalized_link
-                if "tce.by" in normalized_link:
+                if _is_partner_url(normalized_link):
                     discovered_ticket_urls.add(normalized_link)
                     seeded_direct_ticket_urls.add(normalized_link)
                 else:
@@ -453,6 +473,36 @@ async def check_all_shows():
                     for t_url in extracted:
                         if isinstance(t_url, str):
                             discovered_ticket_urls.add(t_url)
+                    # Additionally, collect partner links (e.g., ticketpro.by) from anchors/iframes/data-attrs
+                    try:
+                        partner_anchor_links = await page.eval_on_selector_all(
+                            "a[href]",
+                            "(els) => Array.from(new Set(els.map(e => e.href)))"
+                        )
+                    except Exception:
+                        partner_anchor_links = []
+                    try:
+                        partner_iframe_links = await page.eval_on_selector_all(
+                            "iframe[src]",
+                            "(els) => Array.from(new Set(els.map(e => e.src)))"
+                        )
+                    except Exception:
+                        partner_iframe_links = []
+                    try:
+                        partner_data_attr_links = await page.evaluate("() => {\n                            const urls = new Set();\n                            const add = u => { try { if (u) urls.add(u); } catch(_){} };\n                            document.querySelectorAll('[data-href],[data-url],[data-link]').forEach(el => {\n                              add(el.getAttribute('data-href'));\n                              add(el.getAttribute('data-url'));\n                              add(el.getAttribute('data-link'));\n                            });\n                            return Array.from(urls);\n                        }")
+                    except Exception:
+                        partner_data_attr_links = []
+                    partner_candidates = []
+                    for u in [*(partner_anchor_links or []), *(partner_iframe_links or []), *(partner_data_attr_links or [])]:
+                        try:
+                            if isinstance(u, str) and _is_partner_url(u):
+                                partner_candidates.append(u)
+                        except Exception:
+                            pass
+                    if partner_candidates:
+                        for t_url in partner_candidates:
+                            discovered_ticket_urls.add(t_url)
+                            found_links_for_log.add(t_url)
                     # Update cache mapping for this show
                     if extracted:
                         cached_map.setdefault(visit_url, [])
@@ -474,29 +524,29 @@ async def check_all_shows():
                                 await page.goto(href, wait_until='domcontentloaded')
                                 await page.wait_for_timeout(800)
                                 current_url = page.url
-                                if isinstance(current_url, str) and 'tce.by' in current_url:
+                                if isinstance(current_url, str) and _is_partner_url(current_url):
                                     discovered_ticket_urls.add(current_url)
                                 inner_ticket_links = await page.eval_on_selector_all(
-                                    "a[href*='tce.by']",
-                                    "els => Array.from(new Set(els.map(e => e.href)))"
+                                    "a[href]",
+                                    "(els) => Array.from(new Set(els.map(e => e.href)))"
                                 )
                                 inner_shows_links = await page.eval_on_selector_all(
-                                    "a[href*='tce.by/shows.html']",
-                                    "els => Array.from(new Set(els.map(e => e.href)))"
+                                    "a[href]",
+                                    "(els) => Array.from(new Set(els.map(e => e.href)))"
                                 )
                                 inner_iframe_links = await page.eval_on_selector_all(
-                                    "iframe[src*='tce.by']",
-                                    "els => Array.from(new Set(els.map(e => e.src)))"
+                                    "iframe[src]",
+                                    "(els) => Array.from(new Set(els.map(e => e.src)))"
                                 )
-                                extracted_inner_raw = [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]
-                                extracted_inner = _only_string_urls(extracted_inner_raw)
+                                # Filter inner links by partner domains
+                                inner_all = [*(inner_ticket_links or []), *(inner_shows_links or []), *(inner_iframe_links or [])]
+                                extracted_inner = [u for u in inner_all if isinstance(u, str) and _is_partner_url(u)]
                                 for t_url in extracted_inner:
-                                    if isinstance(t_url, str):
-                                        discovered_ticket_urls.add(t_url)
+                                    discovered_ticket_urls.add(t_url)
                                 if extracted_inner:
                                     cached_map.setdefault(visit_url, [])
                                     for t in extracted_inner:
-                                        if isinstance(t, str) and t not in cached_map[visit_url]:
+                                        if t not in cached_map[visit_url]:
                                             cached_map[visit_url].append(t)
                                 for t in extracted_inner:
                                     found_links_for_log.add(t)
