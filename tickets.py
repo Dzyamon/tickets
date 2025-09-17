@@ -36,6 +36,9 @@ REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
 REMOTE_BRANCH = os.getenv("REMOTE_SHOWS_BRANCH", "state")
 USE_REMOTE_SHOWS = os.getenv("USE_REMOTE_SHOWS", "true").lower() in ("1", "true", "yes")
 
+# Toggle to enable/disable this Afisha Check pipeline at runtime
+AFISHA_CHECK_ENABLED = os.getenv("AFISHA_CHECK_ENABLED", "false").lower() in ("1", "true", "yes")
+
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable must be set")
 if not CHAT_IDS or not any(CHAT_IDS):
@@ -541,6 +544,9 @@ async def check_all_shows():
 
 def main():
     try:
+        if not AFISHA_CHECK_ENABLED:
+            logger.info("Afisha Check is disabled via env AFISHA_CHECK_ENABLED. Skipping.")
+            return
         logger.info("Starting ticket check")
         previous_seats = load_previous_seats()
         current_seats = asyncio.run(check_all_shows())
