@@ -400,8 +400,12 @@ async def check_all_shows():
                         continue
 
             # Visit each discovered show page and extract ticket links
+            success_with_links = {}
+            success_no_links = set()
+            failures = {}
             for show_url in sorted(discovered_show_urls):
                 try:
+                    logger.info(f"Visiting show page {show_url}")
                     await page.goto(show_url, wait_until='domcontentloaded')
                     # Let dynamic content render
                     await page.wait_for_timeout(1000)
@@ -440,10 +444,13 @@ async def check_all_shows():
                             if t not in cached_map[show_url]:
                                 cached_map[show_url].append(t)
                     # Summary log for this show (no full link listing)
-                    if extracted:
-                        logger.info(f"Show {show_url} -> found {len(set(extracted))} ticket links")
+                    unique_count = len(set(extracted))
+                    if unique_count:
+                        logger.info(f"Show {show_url} -> found {unique_count} ticket links")
+                        success_with_links[show_url] = unique_count
                     else:
                         logger.warning(f"Show {show_url} -> no ticket links found")
+                        success_no_links.add(show_url)
                     # Collect potential internal buy links by text
                     buy_links = await page.evaluate(
                         "() => Array.from(document.querySelectorAll('a[href]')).map(a => ({href: a.href, text: (a.textContent||'').trim()}))"
@@ -485,8 +492,26 @@ async def check_all_shows():
                                 logger.debug(f"Skip buy link {href}: {e}")
                                 continue
                 except Exception as e:
-                    logger.debug(f"Skip show {show_url}: {e}")
+                    failures[show_url] = str(e)
+                    logger.warning(f"Skip show {show_url}: {e}")
                     continue
+
+            # End-of-crawl summary for show pages
+            try:
+                total_seeded = len(discovered_show_urls)
+                total_visited = len(success_with_links) + len(success_no_links) + len(failures)
+                logger.info(
+                    f"Show pages summary: seeded={total_seeded}, visited={total_visited}, "
+                    f"with_links={len(success_with_links)}, no_links={len(success_no_links)}, "
+                    f"failed={len(failures)}"
+                )
+                if failures:
+                    # List failed URLs with reasons (trim reason length)
+                    for url, reason in list(failures.items()):
+                        trimmed = (reason[:300] + '...') if len(reason) > 300 else reason
+                        logger.warning(f"Failed show: {url} — {trimmed}")
+            except Exception:
+                pass
 
             # Merge with cached urls and save cache
             all_ticket_urls = sorted(set(list(discovered_ticket_urls) + list(cached_ticket_urls)))
