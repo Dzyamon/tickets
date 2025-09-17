@@ -116,11 +116,16 @@ def load_previous_seats():
         return {}
     try:
         with open(SEATS_FILE, "r", encoding="utf-8") as f:
-            seats = json.load(f)
+            # Gracefully handle empty/invalid JSON as first run
+            try:
+                seats = json.load(f)
+            except json.JSONDecodeError:
+                logger.info("Seats file is empty or invalid JSON. Treating as first run.")
+                return {}
             logger.info(f"Loaded seats data for {len(seats)} shows")
             return seats
     except Exception as e:
-        logger.error(f"Error loading previous seats: {e}")
+        logger.warning(f"Error loading previous seats, continuing as first run: {e}")
         return {}
 
 def save_seats(seats):
@@ -485,11 +490,20 @@ async def check_all_shows():
                             for btn in buy_us_btns:
                                 try:
                                     await btn.click()
-                                    await page.wait_for_timeout(500)
+                                    await page.wait_for_timeout(400)
                                 except Exception:
                                     continue
-                            # small extra wait after clicking all
-                            await page.wait_for_timeout(500)
+                            # After expanding, directly query for the tce shows links under the section
+                            tce_direct_after_click = await page.eval_on_selector_all(
+                                "a[href*='tce.by/shows.html']",
+                                "els => Array.from(new Set(els.map(e => e.href)))"
+                            )
+                            for u in _only_string_urls(tce_direct_after_click):
+                                u_nf = _strip_fragment(u)
+                                if _is_tce_show_link(u_nf):
+                                    discovered_ticket_urls.add(u_nf)
+                                    found_links_for_log.add(u_nf)
+                            await page.wait_for_timeout(300)
                     except Exception:
                         pass
                     # Collect direct ticket links
