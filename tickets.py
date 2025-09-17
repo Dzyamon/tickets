@@ -416,7 +416,10 @@ async def check_all_shows():
             for show_url in sorted(discovered_show_urls):
                 try:
                     logger.info(f"Visiting show page {show_url}")
-                    await page.goto(show_url, wait_until='domcontentloaded')
+                    visit_url = show_url.split('#')[0] if isinstance(show_url, str) else show_url
+                    if visit_url != show_url:
+                        logger.debug(f"Stripped fragment: navigating to {visit_url}")
+                    await page.goto(visit_url, wait_until='domcontentloaded')
                     # Let dynamic content render
                     await page.wait_for_timeout(1000)
                     try:
