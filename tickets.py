@@ -179,6 +179,24 @@ def _only_string_urls(items):
     except Exception:
         return []
 
+def _is_tce_show_link(url: str) -> bool:
+    try:
+        if not isinstance(url, str) or not url:
+            return False
+        parsed = urlparse(url)
+        host = (parsed.netloc or '').lower()
+        path = (parsed.path or '').lower()
+        if 'tce.by' not in host:
+            return False
+        if not path.endswith('/shows.html') and not path.endswith('shows.html'):
+            return False
+        # Must contain both base and data query params
+        from urllib.parse import parse_qs
+        qs = parse_qs(parsed.query or '')
+        return 'base' in qs and 'data' in qs
+    except Exception:
+        return False
+
 def load_tickets_cache():
     try:
         if not os.path.exists(TICKETS_CACHE_FILE):
@@ -475,7 +493,7 @@ async def check_all_shows():
                     # Scan all text content and attributes for tce.by patterns
                     text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
                     extracted_raw = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
-                    extracted = _only_string_urls(extracted_raw)
+                    extracted = [u for u in _only_string_urls(extracted_raw) if _is_tce_show_link(u)]
                     found_links_for_log = set(extracted)
                     for t_url in extracted:
                         if isinstance(t_url, str):
@@ -508,8 +526,9 @@ async def check_all_shows():
                             pass
                     if partner_candidates:
                         for t_url in partner_candidates:
-                            discovered_ticket_urls.add(t_url)
-                            found_links_for_log.add(t_url)
+                            if _is_tce_show_link(t_url):
+                                discovered_ticket_urls.add(t_url)
+                                found_links_for_log.add(t_url)
                     # Update cache mapping for this show
                     if extracted:
                         cached_map.setdefault(visit_url, [])
@@ -531,7 +550,7 @@ async def check_all_shows():
                                 await page.goto(href, wait_until='domcontentloaded')
                                 await page.wait_for_timeout(800)
                                 current_url = page.url
-                                if isinstance(current_url, str) and _is_partner_url(current_url):
+                                if isinstance(current_url, str) and _is_tce_show_link(current_url):
                                     discovered_ticket_urls.add(current_url)
                                 inner_ticket_links = await page.eval_on_selector_all(
                                     "a[href]",
@@ -547,7 +566,7 @@ async def check_all_shows():
                                 )
                                 # Filter inner links by partner domains
                                 inner_all = [*(inner_ticket_links or []), *(inner_shows_links or []), *(inner_iframe_links or [])]
-                                extracted_inner = [u for u in inner_all if isinstance(u, str) and _is_partner_url(u)]
+                                extracted_inner = [u for u in inner_all if isinstance(u, str) and _is_tce_show_link(u)]
                                 for t_url in extracted_inner:
                                     discovered_ticket_urls.add(t_url)
                                 if extracted_inner:
