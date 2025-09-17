@@ -27,15 +27,9 @@ CATEGORY_URLS = [
     f"{AFISHA_BASE}/spektakli/spektakli-dlya-vzroslykh",
 ]
 
-# External ticketing partner domains to detect
+# External ticketing domains to detect (restricted to tce.by)
 PARTNER_DOMAINS = [
     "tce.by",
-    "ticketpro.by",
-    "bycard.by",
-    "kvitki.by",
-    "bilety.by",
-    "bilets.by",
-    "afisha.by",
 ]
 
 def _is_partner_url(url: str) -> bool:
@@ -444,6 +438,19 @@ async def check_all_shows():
                     await page.wait_for_timeout(1000)
                     try:
                         await page.wait_for_load_state('networkidle', timeout=3000)
+                    except Exception:
+                        pass
+                    # Try to jump to tickets section and expand in-page controls
+                    try:
+                        await page.evaluate("window.location.hash = 'tickets'")
+                        await page.wait_for_timeout(300)
+                    except Exception:
+                        pass
+                    try:
+                        buy_us_btn = await page.query_selector("text=Купить у нас")
+                        if buy_us_btn:
+                            await buy_us_btn.click()
+                            await page.wait_for_timeout(600)
                     except Exception:
                         pass
                     # Collect direct ticket links
