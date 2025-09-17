@@ -498,11 +498,18 @@ async def check_all_shows():
                                 "a[href*='tce.by/shows.html']",
                                 "els => Array.from(new Set(els.map(e => e.href)))"
                             )
+                            direct_links_norm = []
                             for u in _only_string_urls(tce_direct_after_click):
                                 u_nf = _strip_fragment(u)
                                 if _is_tce_show_link(u_nf):
                                     discovered_ticket_urls.add(u_nf)
                                     found_links_for_log.add(u_nf)
+                                    direct_links_norm.append(u_nf)
+                            if direct_links_norm:
+                                cached_map.setdefault(visit_url, [])
+                                for t in direct_links_norm:
+                                    if t not in cached_map[visit_url]:
+                                        cached_map[visit_url].append(t)
                             await page.wait_for_timeout(300)
                     except Exception:
                         pass
