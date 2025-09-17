@@ -265,14 +265,13 @@ def load_shows_from_afisha():
         logger.error(f"Failed to load shows from {SHOWS_FILE}: {e}")
         return []
 
-async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
+async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
     for attempt in range(max_retries):
         try:
             logger.debug(f"Loading page {url}")
             response = await page.goto(url, wait_until='domcontentloaded', timeout=timeout)
-            if not response:
-                raise Exception("Failed to get response from page")
-            if not response.ok:
+            # Some pages behind bot protection might return null response; rely on DOM checks instead
+            if response and not response.ok:
                 raise Exception(f"Page returned status {response.status}")
 
             logger.debug("Waiting for page to load and checking for bot protection...")
@@ -282,8 +281,13 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
                 protection_text = await page.query_selector("text=Making sure you're not a bot!")
                 if protection_text:
                     logger.info("Bot protection detected, waiting for it to complete...")
-                    # Wait for the protection to complete - look for either the seat table or the show title
-                    await page.wait_for_selector("table#myHall td.place, h1", timeout=60000)  # Longer timeout for protection
+                    # Wait longer and also allow a reload once
+                    try:
+                        await page.wait_for_selector("table#myHall td.place, h1", timeout=90000)
+                    except Exception:
+                        await page.reload()
+                        await asyncio.sleep(3)
+                        await page.wait_for_selector("table#myHall td.place, h1", timeout=90000)
                     logger.info("Bot protection completed")
             except Exception as e:
                 logger.debug(f"No bot protection detected or already completed: {e}")
@@ -302,6 +306,9 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=20000):
                 await page.reload()
                 await asyncio.sleep(3)
                 await page.wait_for_selector("table#myHall td.place", timeout=timeout)
+            except Exception:
+                # Continue; we will still try to parse title and treat as 0 seats
+                pass
             
             # Get show title
             title_elem = await page.query_selector("h1")
@@ -465,10 +472,16 @@ async def check_all_shows():
                     except Exception:
                         pass
                     try:
-                        buy_us_btn = await page.query_selector("text=Купить у нас")
-                        if buy_us_btn:
-                            await buy_us_btn.click()
-                            await page.wait_for_timeout(600)
+                        buy_us_btns = await page.query_selector_all("text=Купить у нас")
+                        if buy_us_btns:
+                            for btn in buy_us_btns:
+                                try:
+                                    await btn.click()
+                                    await page.wait_for_timeout(500)
+                                except Exception:
+                                    continue
+                            # small extra wait after clicking all
+                            await page.wait_for_timeout(500)
                     except Exception:
                         pass
                     # Collect direct ticket links
