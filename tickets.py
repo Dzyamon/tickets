@@ -158,6 +158,16 @@ def _normalize_filter_dedupe_links(items):
     except Exception:
         return []
 
+def _only_string_urls(items):
+    try:
+        urls = []
+        for it in items or []:
+            if isinstance(it, str):
+                urls.append(it)
+        return urls
+    except Exception:
+        return []
+
 def load_tickets_cache():
     try:
         if not os.path.exists(TICKETS_CACHE_FILE):
@@ -437,9 +447,11 @@ async def check_all_shows():
                     onclick_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        document.querySelectorAll('[onclick]').forEach(el => {\n                          const txt = el.getAttribute('onclick') || '';\n                          let m;\n                          while ((m = re.exec(txt)) !== null) { urls.add(m[1]); }\n                        });\n                        return Array.from(urls);\n                    }")
                     # Scan all text content and attributes for tce.by patterns
                     text_scan_links = await page.evaluate("() => {\n                        const urls = new Set();\n                        const re = /(https?:\\/\\/[^'\"\s)]+tce\.by[^'\"\s)]*)/ig;\n                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);\n                        let node;\n                        while (node = walker.nextNode()) {\n                          if (node.nodeType === Node.TEXT_NODE) {\n                            let m;\n                            while ((m = re.exec(node.textContent)) !== null) { urls.add(m[1]); }\n                          } else if (node.nodeType === Node.ELEMENT_NODE) {\n                            for (const attr of node.attributes || []) {\n                              let m;\n                              while ((m = re.exec(attr.value)) !== null) { urls.add(m[1]); }\n                            }\n                          }\n                        }\n                        return Array.from(urls);\n                    }")
-                    extracted = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
+                    extracted_raw = [*ticket_links, *ticket_links_shows, *iframe_links, *data_attr_links, *onclick_links, *text_scan_links]
+                    extracted = _only_string_urls(extracted_raw)
                     for t_url in extracted:
-                        discovered_ticket_urls.add(t_url)
+                        if isinstance(t_url, str):
+                            discovered_ticket_urls.add(t_url)
                     # Update cache mapping for this show
                     if extracted:
                         cached_map.setdefault(show_url, [])
@@ -469,7 +481,7 @@ async def check_all_shows():
                                 await page.goto(href, wait_until='domcontentloaded')
                                 await page.wait_for_timeout(800)
                                 current_url = page.url
-                                if 'tce.by' in current_url:
+                                if isinstance(current_url, str) and 'tce.by' in current_url:
                                     discovered_ticket_urls.add(current_url)
                                 inner_ticket_links = await page.eval_on_selector_all(
                                     "a[href*='tce.by']",
@@ -483,13 +495,15 @@ async def check_all_shows():
                                     "iframe[src*='tce.by']",
                                     "els => Array.from(new Set(els.map(e => e.src)))"
                                 )
-                                extracted_inner = [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]
+                                extracted_inner_raw = [*inner_ticket_links, *inner_shows_links, *inner_iframe_links]
+                                extracted_inner = _only_string_urls(extracted_inner_raw)
                                 for t_url in extracted_inner:
-                                    discovered_ticket_urls.add(t_url)
+                                    if isinstance(t_url, str):
+                                        discovered_ticket_urls.add(t_url)
                                 if extracted_inner:
                                     cached_map.setdefault(show_url, [])
                                     for t in extracted_inner:
-                                        if t not in cached_map[show_url]:
+                                        if isinstance(t, str) and t not in cached_map[show_url]:
                                             cached_map[show_url].append(t)
                             except Exception as e:
                                 logger.debug(f"Skip buy link {href}: {e}")
