@@ -289,50 +289,160 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
 
             logger.debug("Waiting for page to load and checking for bot protection...")
             
-            # Check if we're on the bot protection page
+            # Enhanced bot protection handling for Anubis
             try:
-                protection_text = await page.query_selector("text=Making sure you're not a bot!")
-                if protection_text:
-                    logger.info("Bot protection detected, waiting for it to complete...")
-                    # Wait longer and also allow a reload once
+                # Check for various bot protection indicators
+                protection_indicators = [
+                    "text=Making sure you're not a bot!",
+                    "text=Loading...",
+                    "text=Why am I seeing this?",
+                    "text=Anubis",
+                    "text=Proof-of-Work"
+                ]
+                
+                protection_detected = False
+                for indicator in protection_indicators:
                     try:
-                        await page.wait_for_selector("table#myHall td.place, h1", timeout=90000)
+                        if await page.query_selector(indicator):
+                            protection_detected = True
+                            logger.info(f"Bot protection detected ({indicator}), waiting for completion...")
+                            break
                     except Exception:
+                        continue
+                
+                if protection_detected:
+                    # Wait for the protection to complete with multiple strategies
+                    logger.info("Waiting for Anubis protection to complete (up to 2 minutes)...")
+                    
+                    # Strategy 1: Wait for the protection page to disappear and content to load
+                    try:
+                        await page.wait_for_function("""
+                            () => {
+                                // Check if protection page is gone
+                                const protectionTexts = [
+                                    "Making sure you're not a bot!",
+                                    "Loading...",
+                                    "Why am I seeing this?",
+                                    "Anubis"
+                                ];
+                                const bodyText = document.body.innerText;
+                                const hasProtection = protectionTexts.some(text => bodyText.includes(text));
+                                
+                                // Check if actual content is loaded
+                                const hasSeats = document.querySelector("table#myHall td.place") !== null;
+                                const hasTitle = document.querySelector("h1") !== null;
+                                
+                                return !hasProtection && (hasSeats || hasTitle);
+                            }
+                        """, timeout=120000)  # 2 minutes
+                        logger.info("Protection completed - content loaded")
+                    except Exception as e:
+                        logger.warning(f"Protection wait failed: {e}")
+                        
+                        # Strategy 2: Try reloading and waiting again
+                        logger.info("Trying page reload to bypass protection...")
                         await page.reload()
-                        await asyncio.sleep(3)
-                        await page.wait_for_selector("table#myHall td.place, h1", timeout=90000)
-                    logger.info("Bot protection completed")
+                        await asyncio.sleep(5)
+                        
+                        # Wait for either seats or title to appear
+                        try:
+                            await page.wait_for_selector("table#myHall td.place, h1", timeout=60000)
+                            logger.info("Content loaded after reload")
+                        except Exception:
+                            logger.warning("Still no content after reload, continuing anyway")
+                    
+                    # Additional wait to ensure JavaScript has finished
+                    await asyncio.sleep(3)
+                    
             except Exception as e:
-                logger.debug(f"No bot protection detected or already completed: {e}")
+                logger.debug(f"No bot protection detected or error checking: {e}")
             
-            # Now wait for seat elements
+            # Now wait for seat elements with improved detection
             logger.debug("Waiting for seat elements to load...")
             
-            # Add a small delay to let any remaining protection processes complete
-            await asyncio.sleep(2)
-            
+            # Wait for the page to be fully loaded
             try:
-                await page.wait_for_selector("table#myHall td.place", timeout=timeout)
-            except TimeoutError:
-                # If seats don't load, try refreshing the page once
-                logger.warning("Seats not found, trying to refresh page...")
-                await page.reload()
-                await asyncio.sleep(3)
-                await page.wait_for_selector("table#myHall td.place", timeout=timeout)
+                await page.wait_for_load_state('networkidle', timeout=10000)
             except Exception:
-                # Continue; we will still try to parse title and treat as 0 seats
-                pass
+                pass  # Continue even if networkidle times out
+            
+            # Try multiple selectors for seats
+            seat_selectors = [
+                "table#myHall td.place",
+                "td.place",
+                ".place",
+                "[title*='Цена']",
+                "td[title*='Цена']"
+            ]
+            
+            seats_found = False
+            for selector in seat_selectors:
+                try:
+                    await page.wait_for_selector(selector, timeout=15000)
+                    seats_found = True
+                    logger.debug(f"Found seats using selector: {selector}")
+                    break
+                except Exception:
+                    continue
+            
+            if not seats_found:
+                logger.warning("No seat selectors found, trying page refresh...")
+                await page.reload()
+                await asyncio.sleep(5)
+                
+                # Try again after refresh
+                for selector in seat_selectors:
+                    try:
+                        await page.wait_for_selector(selector, timeout=15000)
+                        seats_found = True
+                        logger.debug(f"Found seats after refresh using selector: {selector}")
+                        break
+                    except Exception:
+                        continue
             
             # Get show title
             title_elem = await page.query_selector("h1")
             title = await title_elem.inner_text() if title_elem else "Unknown Show"
             
-            seats = await page.query_selector_all("table#myHall td.place")
+            # Try multiple approaches to find seats
             available = []
+            
+            # Method 1: Look for td.place elements
+            seats = await page.query_selector_all("table#myHall td.place")
             for seat in seats:
                 title_attr = await seat.get_attribute("title")
                 if title_attr and "Цена" in title_attr:
                     available.append(title_attr)
+            
+            # Method 2: If no seats found, try broader search
+            if not available:
+                all_places = await page.query_selector_all("td.place, .place")
+                for place in all_places:
+                    title_attr = await place.get_attribute("title")
+                    if title_attr and "Цена" in title_attr:
+                        available.append(title_attr)
+            
+            # Method 3: Look for any element with price information
+            if not available:
+                price_elements = await page.query_selector_all("[title*='Цена'], [title*='цена']")
+                for elem in price_elements:
+                    title_attr = await elem.get_attribute("title")
+                    if title_attr and ("Цена" in title_attr or "цена" in title_attr):
+                        available.append(title_attr)
+            
+            # Method 4: Check if there are any clickable seat elements
+            if not available:
+                clickable_seats = await page.query_selector_all("td[onclick], .seat[onclick], [onclick*='seat']")
+                if clickable_seats:
+                    logger.debug(f"Found {len(clickable_seats)} clickable seat elements")
+                    # Try to get price info from these elements
+                    for seat in clickable_seats:
+                        title_attr = await seat.get_attribute("title")
+                        onclick_attr = await seat.get_attribute("onclick")
+                        if title_attr and "Цена" in title_attr:
+                            available.append(title_attr)
+                        elif onclick_attr and "Цена" in onclick_attr:
+                            available.append(onclick_attr)
 
             # Single concise log line per show
             logger.info(f"Found {len(available)} seats for {title} at {url}")
@@ -366,7 +476,34 @@ async def check_all_shows():
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
-                    '--disable-gpu'
+                    '--disable-gpu',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-web-security',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
+                    '--no-first-run',
+                    '--no-default-browser-check',
+                    '--disable-default-apps',
+                    '--disable-popup-blocking',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-images',
+                    '--disable-javascript-harmony-shipping',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-field-trial-config',
+                    '--disable-back-forward-cache',
+                    '--disable-hang-monitor',
+                    '--disable-prompt-on-repost',
+                    '--disable-sync',
+                    '--metrics-recording-only',
+                    '--no-report-upload',
+                    '--safebrowsing-disable-auto-update',
+                    '--enable-automation',
+                    '--password-store=basic',
+                    '--use-mock-keychain'
                 ]
             )
             
@@ -378,13 +515,74 @@ async def check_all_shows():
                 locale='ru-RU',
                 timezone_id='Europe/Minsk',
                 extra_http_headers={
-                    'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8'
-                }
+                    'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Upgrade-Insecure-Requests': '1'
+                },
+                # Add stealth settings to avoid detection
+                java_script_enabled=True,
+                bypass_csp=True,
+                # Simulate a real browser more closely
+                device_scale_factor=1,
+                is_mobile=False,
+                has_touch=False
             )
             
             logger.info("Creating new page")
             page = await context.new_page()
             page.set_default_timeout(30000)
+            
+            # Add stealth measures to avoid detection
+            await page.add_init_script("""
+                // Remove webdriver property
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined,
+                });
+                
+                // Mock plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                
+                // Mock languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['ru-RU', 'ru', 'en-US', 'en'],
+                });
+                
+                // Mock permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+                
+                // Override the `plugins` property to use a custom getter
+                Object.defineProperty(navigator, 'plugins', {
+                    get: function() {
+                        return [1, 2, 3, 4, 5];
+                    },
+                });
+                
+                // Override the `languages` property to use a custom getter
+                Object.defineProperty(navigator, 'languages', {
+                    get: function() {
+                        return ['ru-RU', 'ru', 'en-US', 'en'];
+                    },
+                });
+                
+                // Mock chrome runtime
+                window.chrome = {
+                    runtime: {},
+                };
+            """)
 
             # Seed URLs from shows file (state). Use direct tce links as tickets,
             # and non-tce links as show pages to resolve their ticket links.
