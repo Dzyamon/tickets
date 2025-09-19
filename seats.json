@@ -14,8 +14,13 @@
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3711": {
     "title": "В стране невыученных уроков",
     "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3711",
-    "available_seats": [],
-    "count": 0
+    "available_seats": [
+      "Зона: партер\nЦена: 20 руб",
+      "Зона: партер\nЦена: 20 руб",
+      "Зона: партер\nЦена: 20 руб",
+      "Зона: партер\nЦена: 20 руб"
+    ],
+    "count": 4
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3712": {
     "title": "В стране невыученных уроков",
@@ -38,8 +43,11 @@
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3719": {
     "title": "Умная собачка Соня",
     "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3719",
-    "available_seats": [],
-    "count": 0
+    "available_seats": [
+      "Цена: 20 руб",
+      "Цена: 20 руб"
+    ],
+    "count": 2
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3720": {
     "title": "Умная собачка Соня",
