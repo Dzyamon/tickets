@@ -290,115 +290,138 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             logger.debug("Waiting for page to load and checking for bot protection...")
             
             # Enhanced bot protection handling for Anubis
+            logger.info("Checking for bot protection and waiting for page to fully load...")
+            
+            # Always wait for the page to be fully loaded, regardless of protection detection
             try:
-                # Check for various bot protection indicators
-                protection_indicators = [
-                    "text=Making sure you're not a bot!",
-                    "text=Loading...",
-                    "text=Why am I seeing this?",
-                    "text=Anubis",
-                    "text=Proof-of-Work"
-                ]
-                
-                protection_detected = False
-                for indicator in protection_indicators:
-                    try:
-                        if await page.query_selector(indicator):
-                            protection_detected = True
-                            logger.info(f"Bot protection detected ({indicator}), waiting for completion...")
-                            break
-                    except Exception:
-                        continue
-                
-                if protection_detected:
-                    # Wait for the protection to complete with multiple strategies
-                    logger.info("Waiting for Anubis protection to complete (up to 2 minutes)...")
-                    
-                    # Strategy 1: Wait for the protection page to disappear and content to load
-                    try:
-                        await page.wait_for_function("""
-                            () => {
-                                // Check if protection page is gone
-                                const protectionTexts = [
-                                    "Making sure you're not a bot!",
-                                    "Loading...",
-                                    "Why am I seeing this?",
-                                    "Anubis"
-                                ];
-                                const bodyText = document.body.innerText;
-                                const hasProtection = protectionTexts.some(text => bodyText.includes(text));
-                                
-                                // Check if actual content is loaded
-                                const hasSeats = document.querySelector("table#myHall td.place") !== null;
-                                const hasTitle = document.querySelector("h1") !== null;
-                                
-                                return !hasProtection && (hasSeats || hasTitle);
-                            }
-                        """, timeout=120000)  # 2 minutes
-                        logger.info("Protection completed - content loaded")
-                    except Exception as e:
-                        logger.warning(f"Protection wait failed: {e}")
+                # Wait for network to be idle (no requests for 500ms)
+                await page.wait_for_load_state('networkidle', timeout=15000)
+                logger.info("Page network idle state reached")
+            except Exception:
+                logger.debug("Network idle timeout, continuing...")
+            
+            # Check for bot protection indicators
+            protection_indicators = [
+                "text=Making sure you're not a bot!",
+                "text=Loading...",
+                "text=Why am I seeing this?",
+                "text=Anubis",
+                "text=Proof-of-Work"
+            ]
+            
+            protection_detected = False
+            for indicator in protection_indicators:
+                try:
+                    if await page.query_selector(indicator):
+                        protection_detected = True
+                        logger.info(f"Bot protection detected ({indicator}), waiting for completion...")
+                        break
+                except Exception:
+                    continue
+            
+            # Always wait for content to load, even if no protection detected
+            if protection_detected:
+                logger.info("Waiting for Anubis protection to complete (up to 3 minutes)...")
+            else:
+                logger.info("Waiting for page content to fully load (up to 2 minutes)...")
+            
+            # Wait for the page to be fully loaded with multiple strategies
+            try:
+                # Strategy 1: Wait for either seats or title to appear
+                await page.wait_for_function("""
+                    () => {
+                        // Check if protection page is gone
+                        const protectionTexts = [
+                            "Making sure you're not a bot!",
+                            "Loading...",
+                            "Why am I seeing this?",
+                            "Anubis"
+                        ];
+                        const bodyText = document.body.innerText;
+                        const hasProtection = protectionTexts.some(text => bodyText.includes(text));
                         
-                        # Strategy 2: Try reloading and waiting again
-                        logger.info("Trying page reload to bypass protection...")
-                        await page.reload()
-                        await asyncio.sleep(5)
+                        // Check if actual content is loaded
+                        const hasSeats = document.querySelector("table#myHall td.place") !== null;
+                        const hasTitle = document.querySelector("h1") !== null;
+                        const hasAnyContent = document.querySelector("body").innerText.length > 100;
                         
-                        # Wait for either seats or title to appear
-                        try:
-                            await page.wait_for_selector("table#myHall td.place, h1", timeout=60000)
-                            logger.info("Content loaded after reload")
-                        except Exception:
-                            logger.warning("Still no content after reload, continuing anyway")
-                    
-                    # Additional wait to ensure JavaScript has finished
-                    await asyncio.sleep(3)
-                    
+                        return !hasProtection && (hasSeats || hasTitle || hasAnyContent);
+                    }
+                """, timeout=180000)  # 3 minutes
+                logger.info("Page content loaded successfully")
             except Exception as e:
-                logger.debug(f"No bot protection detected or error checking: {e}")
+                logger.warning(f"Content wait failed: {e}")
+                
+                # Strategy 2: Try reloading and waiting again
+                logger.info("Trying page reload to ensure proper loading...")
+                try:
+                    await page.reload()
+                    await asyncio.sleep(5)
+                    
+                    # Wait for either seats or title to appear
+                    await page.wait_for_selector("table#myHall td.place, h1", timeout=120000)
+                    logger.info("Content loaded after reload")
+                except Exception as e2:
+                    logger.warning(f"Reload also failed: {e2}")
+            
+            # Additional wait to ensure all JavaScript has finished
+            logger.info("Waiting for JavaScript to complete...")
+            await asyncio.sleep(5)
+            
+            # Try to scroll to trigger any lazy loading
+            try:
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(2)
+                await page.evaluate("window.scrollTo(0, 0)")
+                await asyncio.sleep(2)
+            except Exception:
+                pass
             
             # Now wait for seat elements with improved detection
-            logger.debug("Waiting for seat elements to load...")
+            logger.info("Looking for seat elements...")
             
-            # Wait for the page to be fully loaded
-            try:
-                await page.wait_for_load_state('networkidle', timeout=10000)
-            except Exception:
-                pass  # Continue even if networkidle times out
-            
-            # Try multiple selectors for seats
+            # Try multiple selectors for seats with longer timeouts
             seat_selectors = [
                 "table#myHall td.place",
                 "td.place",
                 ".place",
                 "[title*='Цена']",
-                "td[title*='Цена']"
+                "td[title*='Цена']",
+                "td[onclick]",
+                ".seat",
+                "[onclick*='seat']"
             ]
             
             seats_found = False
             for selector in seat_selectors:
                 try:
-                    await page.wait_for_selector(selector, timeout=15000)
-                    seats_found = True
-                    logger.debug(f"Found seats using selector: {selector}")
-                    break
-                except Exception:
+                    elements = await page.query_selector_all(selector)
+                    if elements:
+                        logger.info(f"Found {len(elements)} elements with selector: {selector}")
+                        seats_found = True
+                        break
+                except Exception as e:
+                    logger.debug(f"Selector {selector} failed: {e}")
                     continue
             
             if not seats_found:
-                logger.warning("No seat selectors found, trying page refresh...")
-                await page.reload()
-                await asyncio.sleep(5)
-                
-                # Try again after refresh
-                for selector in seat_selectors:
-                    try:
-                        await page.wait_for_selector(selector, timeout=15000)
-                        seats_found = True
-                        logger.debug(f"Found seats after refresh using selector: {selector}")
-                        break
-                    except Exception:
-                        continue
+                logger.warning("No seat elements found, trying page refresh...")
+                try:
+                    await page.reload()
+                    await asyncio.sleep(5)
+                    
+                    # Try again after refresh
+                    for selector in seat_selectors:
+                        try:
+                            elements = await page.query_selector_all(selector)
+                            if elements:
+                                logger.info(f"Found {len(elements)} elements after refresh with selector: {selector}")
+                                seats_found = True
+                                break
+                        except Exception:
+                            continue
+                except Exception as e:
+                    logger.warning(f"Page refresh failed: {e}")
             
             # Get show title
             title_elem = await page.query_selector("h1")
@@ -406,46 +429,141 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             
             # Try multiple approaches to find seats
             available = []
+            logger.info("Searching for available seats...")
             
             # Method 1: Look for td.place elements
             seats = await page.query_selector_all("table#myHall td.place")
+            logger.info(f"Found {len(seats)} td.place elements")
             for seat in seats:
                 title_attr = await seat.get_attribute("title")
                 if title_attr and "Цена" in title_attr:
                     available.append(title_attr)
+                    logger.debug(f"Found seat: {title_attr}")
             
             # Method 2: If no seats found, try broader search
             if not available:
                 all_places = await page.query_selector_all("td.place, .place")
+                logger.info(f"Found {len(all_places)} place elements")
                 for place in all_places:
                     title_attr = await place.get_attribute("title")
                     if title_attr and "Цена" in title_attr:
                         available.append(title_attr)
+                        logger.debug(f"Found seat: {title_attr}")
             
             # Method 3: Look for any element with price information
             if not available:
                 price_elements = await page.query_selector_all("[title*='Цена'], [title*='цена']")
+                logger.info(f"Found {len(price_elements)} price elements")
                 for elem in price_elements:
                     title_attr = await elem.get_attribute("title")
                     if title_attr and ("Цена" in title_attr or "цена" in title_attr):
                         available.append(title_attr)
+                        logger.debug(f"Found price element: {title_attr}")
             
             # Method 4: Check if there are any clickable seat elements
             if not available:
                 clickable_seats = await page.query_selector_all("td[onclick], .seat[onclick], [onclick*='seat']")
-                if clickable_seats:
-                    logger.debug(f"Found {len(clickable_seats)} clickable seat elements")
-                    # Try to get price info from these elements
-                    for seat in clickable_seats:
-                        title_attr = await seat.get_attribute("title")
-                        onclick_attr = await seat.get_attribute("onclick")
-                        if title_attr and "Цена" in title_attr:
-                            available.append(title_attr)
-                        elif onclick_attr and "Цена" in onclick_attr:
-                            available.append(onclick_attr)
+                logger.info(f"Found {len(clickable_seats)} clickable seat elements")
+                for seat in clickable_seats:
+                    title_attr = await seat.get_attribute("title")
+                    onclick_attr = await seat.get_attribute("onclick")
+                    if title_attr and "Цена" in title_attr:
+                        available.append(title_attr)
+                        logger.debug(f"Found clickable seat: {title_attr}")
+                    elif onclick_attr and "Цена" in onclick_attr:
+                        available.append(onclick_attr)
+                        logger.debug(f"Found clickable seat onclick: {onclick_attr}")
+            
+            # Method 5: Look for any table cells that might contain seat information
+            if not available:
+                all_tds = await page.query_selector_all("td")
+                logger.info(f"Checking {len(all_tds)} table cells for seat information")
+                for td in all_tds:
+                    title_attr = await td.get_attribute("title")
+                    onclick_attr = await td.get_attribute("onclick")
+                    if title_attr and ("Цена" in title_attr or "цена" in title_attr):
+                        available.append(title_attr)
+                        logger.debug(f"Found seat in td: {title_attr}")
+                    elif onclick_attr and ("Цена" in onclick_attr or "цена" in onclick_attr):
+                        available.append(onclick_attr)
+                        logger.debug(f"Found seat onclick in td: {onclick_attr}")
+            
+            # Method 6: Check page content for seat information
+            if not available:
+                try:
+                    page_content = await page.content()
+                    if "Цена" in page_content or "цена" in page_content:
+                        logger.info("Found price information in page content, but couldn't extract specific seats")
+                        # Try to extract seat information from the page content
+                        import re
+                        price_matches = re.findall(r'Цена:\s*(\d+)\s*руб', page_content)
+                        if price_matches:
+                            for price in price_matches:
+                                available.append(f"Цена: {price} руб")
+                                logger.debug(f"Extracted price from content: {price} руб")
+                except Exception as e:
+                    logger.debug(f"Content analysis failed: {e}")
+            
+            # Method 7: Check if the API call is being blocked (bot protection)
+            if not available:
+                try:
+                    # Try to make the API call that loads ticket data
+                    api_url = f"https://tce.by/index.php?view=shows&action=ticket&kind=json&base={url.split('base=')[1].split('&')[0]}&data={url.split('data=')[1]}"
+                    logger.info(f"Attempting to load ticket data from API: {api_url}")
+                    
+                    api_result = await page.evaluate(f"""
+                        fetch('{api_url}', {{
+                            method: 'GET',
+                            headers: {{
+                                'Accept': 'application/json, text/plain, */*',
+                                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                                'Referer': '{url}'
+                            }}
+                        }})
+                        .then(response => response.json())
+                        .then(data => data)
+                        .catch(error => {{ error: error.toString() }})
+                    """)
+                    
+                    if isinstance(api_result, dict):
+                        if api_result.get('success') == False:
+                            logger.warning(f"API call blocked by bot protection: {api_result.get('data', 'Unknown error')}")
+                            # This is likely why no seats are found - the API is being blocked
+                        elif api_result.get('success') == True and 'data' in api_result:
+                            logger.info("API call successful, trying to load tickets...")
+                            # Try to call loadTickets with the API data
+                            try:
+                                load_result = await page.evaluate(f"loadTickets({json.dumps(api_result)})")
+                                if load_result:
+                                    logger.info("Successfully loaded tickets from API")
+                                    # Re-check seats after loading from API
+                                    seats_after_api = await page.query_selector_all("td.place")
+                                    for seat in seats_after_api:
+                                        title_attr = await seat.get_attribute("title")
+                                        onclick_attr = await seat.get_attribute("onclick")
+                                        inner_text = await seat.inner_text()
+                                        
+                                        if title_attr and "Цена" in title_attr:
+                                            available.append(title_attr)
+                                        elif onclick_attr and "Цена" in onclick_attr:
+                                            available.append(onclick_attr)
+                                        elif inner_text and inner_text != "0" and inner_text.isdigit():
+                                            available.append(f"Seat available (text: {inner_text})")
+                            except Exception as e:
+                                logger.debug(f"Error calling loadTickets with API data: {e}")
+                        else:
+                            logger.debug(f"Unexpected API response: {api_result}")
+                    else:
+                        logger.debug(f"API call failed: {api_result}")
+                        
+                except Exception as e:
+                    logger.debug(f"Error checking API: {e}")
 
             # Single concise log line per show
-            logger.info(f"Found {len(available)} seats for {title} at {url}")
+            if len(available) == 0:
+                logger.warning(f"Found 0 seats for {title} at {url} - likely blocked by bot protection")
+            else:
+                logger.info(f"Found {len(available)} seats for {title} at {url}")
             return {
                 "title": title,
                 "url": url,
