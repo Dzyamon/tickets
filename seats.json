@@ -60,7 +60,7 @@
     "count": 0
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3723": {
-    "title": "На чёрной-чёрной улице",
+    "title": "Хутар",
     "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3723",
     "available_seats": [],
     "count": 0
@@ -404,6 +404,18 @@
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3785": {
     "title": "МРОIВА",
     "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3785",
+    "available_seats": [],
+    "count": 0
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3811": {
+    "title": "Услуги мастер - класс",
+    "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3811",
+    "available_seats": [],
+    "count": 0
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3812": {
+    "title": "Лекция",
+    "url": "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3812",
     "available_seats": [],
     "count": 0
   }
