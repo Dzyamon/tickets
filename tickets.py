@@ -377,6 +377,31 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             except Exception:
                 pass
             
+            # Try to target the correct frame if seats are rendered inside an iframe (tce.by)
+            target_context = page
+            try:
+                # Prefer a frame whose URL contains tce.by/shows.html
+                for fr in page.frames:
+                    try:
+                        fr_url = (fr.url or '').lower()
+                    except Exception:
+                        continue
+                    if 'tce.by' in fr_url and 'shows.html' in fr_url:
+                        target_context = fr
+                        break
+                # Fallback: first frame that points to tce.by
+                if target_context is page:
+                    for fr in page.frames:
+                        try:
+                            fr_url = (fr.url or '').lower()
+                        except Exception:
+                            continue
+                        if 'tce.by' in fr_url:
+                            target_context = fr
+                            break
+            except Exception:
+                pass
+
             # Now wait for seat elements with improved detection
             logger.info("Looking for seat elements...")
             
@@ -395,7 +420,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             seats_found = False
             for selector in seat_selectors:
                 try:
-                    elements = await page.query_selector_all(selector)
+                    elements = await target_context.query_selector_all(selector)
                     if elements:
                         logger.info(f"Found {len(elements)} elements with selector: {selector}")
                         seats_found = True
@@ -413,7 +438,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                     # Try again after refresh
                     for selector in seat_selectors:
                         try:
-                            elements = await page.query_selector_all(selector)
+                            elements = await target_context.query_selector_all(selector)
                             if elements:
                                 logger.info(f"Found {len(elements)} elements after refresh with selector: {selector}")
                                 seats_found = True
@@ -432,7 +457,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             logger.info("Searching for available seats...")
             
             # Method 1: Look for td.place elements
-            seats = await page.query_selector_all("table#myHall td.place")
+            seats = await target_context.query_selector_all("table#myHall td.place")
             logger.info(f"Found {len(seats)} td.place elements")
             for seat in seats:
                 title_attr = await seat.get_attribute("title")
@@ -442,7 +467,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             
             # Method 2: If no seats found, try broader search
             if not available:
-                all_places = await page.query_selector_all("td.place, .place")
+                all_places = await target_context.query_selector_all("td.place, .place")
                 logger.info(f"Found {len(all_places)} place elements")
                 for place in all_places:
                     title_attr = await place.get_attribute("title")
@@ -452,7 +477,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             
             # Method 3: Look for any element with price information
             if not available:
-                price_elements = await page.query_selector_all("[title*='Цена'], [title*='цена']")
+                price_elements = await target_context.query_selector_all("[title*='Цена'], [title*='цена']")
                 logger.info(f"Found {len(price_elements)} price elements")
                 for elem in price_elements:
                     title_attr = await elem.get_attribute("title")
@@ -462,7 +487,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             
             # Method 4: Check if there are any clickable seat elements
             if not available:
-                clickable_seats = await page.query_selector_all("td[onclick], .seat[onclick], [onclick*='seat']")
+                clickable_seats = await target_context.query_selector_all("td[onclick], .seat[onclick], [onclick*='seat']")
                 logger.info(f"Found {len(clickable_seats)} clickable seat elements")
                 for seat in clickable_seats:
                     title_attr = await seat.get_attribute("title")
@@ -476,7 +501,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             
             # Method 5: Look for any table cells that might contain seat information
             if not available:
-                all_tds = await page.query_selector_all("td")
+                all_tds = await target_context.query_selector_all("td")
                 logger.info(f"Checking {len(all_tds)} table cells for seat information")
                 for td in all_tds:
                     title_attr = await td.get_attribute("title")
@@ -487,6 +512,49 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                     elif onclick_attr and ("Цена" in onclick_attr or "цена" in onclick_attr):
                         available.append(onclick_attr)
                         logger.debug(f"Found seat onclick in td: {onclick_attr}")
+
+            # Method 5b: Robust DOM scan for data-* attributes and availability classes
+            if not available:
+                try:
+                    extracted = await target_context.evaluate("""
+                        () => {
+                            const results = [];
+                            const cells = Array.from(document.querySelectorAll("table#myHall td, td.place, td[onclick], td[title], .place"));
+                            for (const td of cells) {
+                                try {
+                                    const title = td.getAttribute('title') || '';
+                                    const onclick = td.getAttribute('onclick') || '';
+                                    const cls = td.className || '';
+                                    const ds = td.dataset || {};
+                                    const text = (td.textContent || '').trim();
+                                    const price = ds.price || ds.cost || ds.sum || '';
+                                    const row = ds.row || ds.r || '';
+                                    const seat = ds.seat || ds.s || '';
+                                    const looksFree = /\bfree\b/i.test(cls) || /\bsvobod/i.test(cls) || /\bfree\b/i.test(text);
+                                    const hasPriceHint = /Цена|цена/.test(title) || /Цена|цена/.test(onclick) || !!price;
+                                    if (looksFree || hasPriceHint) {
+                                        let info = title || onclick;
+                                        if (!info) {
+                                            const parts = [];
+                                            if (row) parts.push(`Ряд: ${row}`);
+                                            if (seat) parts.push(`Место: ${seat}`);
+                                            if (price) parts.push(`Цена: ${price}`);
+                                            if (!parts.length && text && /^\d+$/.test(text)) parts.push(`Место: ${text}`);
+                                            info = parts.join(', ');
+                                        }
+                                        if (info) results.push(info);
+                                    }
+                                } catch (_) {}
+                            }
+                            return Array.from(new Set(results));
+                        }
+                    """)
+                    if isinstance(extracted, list) and extracted:
+                        for it in extracted:
+                            if isinstance(it, str):
+                                available.append(it)
+                except Exception:
+                    pass
             
             # Method 6: Check page content for seat information
             if not available:
@@ -537,7 +605,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                                 if load_result:
                                     logger.info("Successfully loaded tickets from API")
                                     # Re-check seats after loading from API
-                                    seats_after_api = await page.query_selector_all("td.place")
+                                    seats_after_api = await target_context.query_selector_all("td.place")
                                     for seat in seats_after_api:
                                         title_attr = await seat.get_attribute("title")
                                         onclick_attr = await seat.get_attribute("onclick")
@@ -786,7 +854,6 @@ async def check_all_shows():
             for show_url in sorted(discovered_show_urls):
                 try:
                     visit_url = show_url.split('#')[0] if isinstance(show_url, str) else show_url
-                    logger.info(f"Visiting show page {visit_url}")
                     await page.goto(visit_url, wait_until='domcontentloaded')
                     # Let dynamic content render
                     await page.wait_for_timeout(1000)
