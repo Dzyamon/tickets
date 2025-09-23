@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_IDS = os.getenv("CHAT_IDS", "").split(",")  # Split comma-separated chat IDs
+DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
 
 AFISHA_BASE = "https://puppet-minsk.by"
 CATEGORY_URLS = [
@@ -54,12 +55,16 @@ REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
 REMOTE_BRANCH = os.getenv("REMOTE_SHOWS_BRANCH", "state")
 USE_REMOTE_SHOWS = os.getenv("USE_REMOTE_SHOWS", "true").lower() in ("1", "true", "yes")
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN environment variable must be set")
-if not CHAT_IDS or not any(CHAT_IDS):
-    raise ValueError("CHAT_IDS environment variable must be set with at least one chat ID")
+if not DRY_RUN:
+    if not BOT_TOKEN:
+        raise ValueError("BOT_TOKEN environment variable must be set")
+    if not CHAT_IDS or not any(CHAT_IDS):
+        raise ValueError("CHAT_IDS environment variable must be set with at least one chat ID")
 
 def send_telegram_message(message):
+    if DRY_RUN:
+        logger.info("DRY_RUN: Skipping Telegram message send")
+        return True
     success = True
     # Telegram message limit is 4096 characters
     MAX_MESSAGE_LENGTH = 4000  # Leave some buffer
@@ -304,24 +309,35 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             except Exception:
                 logger.debug("Network idle timeout, continuing...")
             
-            # Check for bot protection indicators
-            protection_indicators = [
-                "text=Making sure you're not a bot!",
-                "text=Loading...",
-                "text=Why am I seeing this?",
-                "text=Anubis",
-                "text=Proof-of-Work"
-            ]
-            
+            # Check for bot protection indicators and wait for Anubis to complete
             protection_detected = False
-            for indicator in protection_indicators:
+            try:
+                body_text = (await page.evaluate("() => document.body.innerText")).lower()
+                if any(k in body_text for k in [
+                    "making sure you're not a bot!".lower(),
+                    "anubis",
+                    "proof-of-work",
+                    "why am i seeing this?"
+                ]):
+                    protection_detected = True
+            except Exception:
+                pass
+            if protection_detected:
+                logger.info("Waiting for Anubis protection to complete (PoW)")
+                # Poll up to 3 minutes for real content markers to appear
                 try:
-                    if await page.query_selector(indicator):
-                        protection_detected = True
-                        logger.info(f"Bot protection detected ({indicator}), waiting for completion...")
-                        break
+                    await page.wait_for_function("""
+                        () => {
+                          const t = (document.body.innerText||'').toLowerCase();
+                          const stillProtected = t.includes('making sure you\'re not a bot!') || t.includes('anubis') || t.includes('proof-of-work');
+                          const hasSeats = document.querySelector('table#myHall td.place') !== null;
+                          const hasTitle = document.querySelector('h1') !== null;
+                          return (!stillProtected) && (hasSeats || hasTitle);
+                        }
+                    """, timeout=180000)
+                    logger.info("Anubis challenge passed")
                 except Exception:
-                    continue
+                    logger.info("Anubis wait timed out; continuing best-effort")
             
             # Always wait for content to load, even if no protection detected
             if protection_detected:
@@ -869,6 +885,13 @@ async def check_all_shows():
                     runtime: {},
                 };
             """)
+
+            # Optional: override URLs for focused testing via env TCE_TEST_URLS (comma-separated)
+            test_urls_env = os.getenv("TCE_TEST_URLS", "").strip()
+            if test_urls_env:
+                discovered_ticket_urls = set(u.strip() for u in test_urls_env.split(",") if u.strip())
+                discovered_show_urls = set()
+                logger.info(f"TCE_TEST_URLS active: {len(discovered_ticket_urls)} urls will be tested")
 
             # Seed URLs from shows file (state). Use direct tce links as tickets,
             # and non-tce links as show pages to resolve their ticket links.
