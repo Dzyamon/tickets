@@ -630,21 +630,28 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             if not available:
                 try:
                     # Try to make the API call that loads ticket data
-                    api_url = f"https://tce.by/index.php?view=shows&action=ticket&kind=json&base={url.split('base=')[1].split('&')[0]}&data={url.split('data=')[1]}"
+                    api_url = f"https://tce.by/index.php?view=shows&action=ticket&kind=json&base={url.split('base=')[1].split('&')[0]}&data={url.split('data=')[1]}&_cb={int(__import__('time').time())}"
                     logger.info(f"Attempting to load ticket data from API: {api_url}")
                     
                     api_result = await page.evaluate(f"""
-                        fetch('{api_url}', {{
-                            method: 'GET',
-                            headers: {{
-                                'Accept': 'application/json, text/plain, */*',
-                                'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-                                'Referer': '{url}'
+                        async () => {{
+                            try {{
+                                const res = await fetch('{api_url}', {{
+                                    method: 'GET',
+                                    credentials: 'include',
+                                    headers: {{
+                                        'Accept': 'application/json, text/plain, */*',
+                                        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'Referer': '{url}'
+                                    }}
+                                }});
+                                const text = await res.text();
+                                try {{ return JSON.parse(text); }} catch(_) {{ return {{ raw: text, status: res.status }}; }}
+                            }} catch (e) {{
+                                return {{ error: String(e) }};
                             }}
-                        }})
-                        .then(response => response.json())
-                        .then(data => data)
-                        .catch(error => {{ error: error.toString() }})
+                        }}
                     """)
                     
                     if isinstance(api_result, dict):
