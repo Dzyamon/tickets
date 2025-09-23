@@ -340,6 +340,20 @@ def main():
             save_shows(current_shows)
         else:
             logger.info("No new shows found")
+            # Still persist if the normalized set changed (e.g., removals or link normalization)
+            try:
+                prev_norm = set(_dedupe_normalize_filter_to_links(previous_shows))
+                curr_norm = set(_dedupe_normalize_filter_to_links(current_shows))
+                if prev_norm != curr_norm:
+                    logger.info(
+                        f"Show list changed (prev={len(prev_norm)}, curr={len(curr_norm)}) without additions; saving updated list"
+                    )
+                    save_shows(current_shows)
+                else:
+                    logger.info("Show list unchanged; no save needed")
+            except Exception:
+                # On any error determining diff, be safe and save
+                save_shows(current_shows)
             
     except Exception as e:
         error_msg = f"Error checking shows: {str(e)}"
