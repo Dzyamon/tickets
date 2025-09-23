@@ -456,6 +456,54 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
             available = []
             logger.info("Searching for available seats...")
             
+            # Method 0: Heuristic scan for availability by classes/data/text
+            try:
+                heuristic = await target_context.evaluate("""
+                    () => {
+                        const results = [];
+                        const cells = Array.from(document.querySelectorAll('table#myHall td.place, td.place'));
+                        const isAvailableClass = (cls) => {
+                            if (!cls) return false;
+                            const c = ' ' + String(cls).toLowerCase() + ' ';
+                            return / free | svobod | свобод | available /.test(c) && !/ busy | sold | reserved | booked | занято | занята | заняты | occupied /.test(c);
+                        };
+                        for (const td of cells) {
+                            try {
+                                const cls = td.className || '';
+                                const ds = td.dataset || {};
+                                const text = (td.textContent || '').trim();
+                                const title = td.getAttribute('title') || '';
+                                const onclick = td.getAttribute('onclick') || '';
+                                const hasPrice = /Цена|цена/.test(title) || /Цена|цена/.test(onclick) || ds.price || ds.cost || ds.sum;
+                                const numericSeat = text && /^\d+$/.test(text) && text !== '0';
+                                const isAvail = isAvailableClass(cls) || numericSeat || !!onclick || !!hasPrice || ds.available === 'true' || ds.free === 'true';
+                                if (isAvail) {
+                                    const row = ds.row || ds.r || '';
+                                    const seat = ds.seat || ds.s || (numericSeat ? text : '');
+                                    const price = ds.price || ds.cost || ds.sum || '';
+                                    let info = title || onclick;
+                                    if (!info) {
+                                        const parts = [];
+                                        if (row) parts.push(`Ряд: ${row}`);
+                                        if (seat) parts.push(`Место: ${seat}`);
+                                        if (price) parts.push(`Цена: ${price}`);
+                                        info = parts.join(', ');
+                                    }
+                                    if (info) results.push(info);
+                                }
+                            } catch (_) {}
+                        }
+                        return Array.from(new Set(results));
+                    }
+                """)
+                if isinstance(heuristic, list) and heuristic:
+                    for it in heuristic:
+                        if isinstance(it, str):
+                            available.append(it)
+                    logger.info(f"Heuristic availability found {len(heuristic)} seats")
+            except Exception:
+                pass
+
             # Method 1: Look for td.place elements
             seats = await target_context.query_selector_all("table#myHall td.place")
             logger.info(f"Found {len(seats)} td.place elements")
