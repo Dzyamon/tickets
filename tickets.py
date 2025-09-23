@@ -45,6 +45,10 @@ SEATS_FILE = "local_seats.json" if os.getenv("GITHUB_ACTIONS") != "true" else "s
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 TICKETS_CACHE_FILE = "local_tickets_cache.json" if os.getenv("GITHUB_ACTIONS") != "true" else "tickets_cache.json"
 
+# Toggle cache usage for tickets discovery (disable to force fresh crawl)
+# Default is disabled per user request; set USE_TICKETS_CACHE=true to enable
+USE_TICKETS_CACHE = os.getenv("USE_TICKETS_CACHE", "false").lower() in ("1", "true", "yes")
+
 # Remote shows source (prefer remote state branch unless explicitly disabled)
 REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
 REMOTE_BRANCH = os.getenv("REMOTE_SHOWS_BRANCH", "state")
@@ -465,7 +469,7 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                         const isAvailableClass = (cls) => {
                             if (!cls) return false;
                             const c = ' ' + String(cls).toLowerCase() + ' ';
-                            return / free | svobod | свобод | available /.test(c) && !/ busy | sold | reserved | booked | занято | занята | заняты | occupied /.test(c);
+                            return / free | svobod | свобод | available /.test(c) && !/ busy | sold | reserved | booked | занято | занята | заняты | occupied | продан /.test(c);
                         };
                         for (const td of cells) {
                             try {
@@ -476,7 +480,9 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                                 const onclick = td.getAttribute('onclick') || '';
                                 const hasPrice = /Цена|цена/.test(title) || /Цена|цена/.test(onclick) || ds.price || ds.cost || ds.sum;
                                 const numericSeat = text && /^\d+$/.test(text) && text !== '0';
-                                const isAvail = isAvailableClass(cls) || numericSeat || !!onclick || !!hasPrice || ds.available === 'true' || ds.free === 'true';
+                                // Treat as available only if classes suggest free OR numeric with no sold/busy marks
+                                const notBusy = !/ busy | sold | reserved | booked | занято | занята | заняты | occupied | продан /i.test(' ' + cls + ' ');
+                                const isAvail = (isAvailableClass(cls) || (numericSeat && notBusy)) || ds.available === 'true' || ds.free === 'true';
                                 if (isAvail) {
                                     const row = ds.row || ds.r || '';
                                     const seat = ds.seat || ds.s || (numericSeat ? text : '');
@@ -675,6 +681,45 @@ async def check_tickets_for_show(page, url, max_retries=3, timeout=40000):
                 except Exception as e:
                     logger.debug(f"Error checking API: {e}")
 
+            # Method 8: Parse embedded loadTickets JSON when API is blocked
+            if not available:
+                try:
+                    embedded = await target_context.evaluate("""
+                        () => {
+                            // Look for a script tag calling loadTickets({...}) and extract JSON
+                            const scripts = Array.from(document.querySelectorAll('script'));
+                            const re = /loadTickets\((\{[\s\S]*?\})\)/;
+                            for (const s of scripts) {
+                                const txt = s.textContent || '';
+                                const m = re.exec(txt);
+                                if (m) {
+                                    try { return JSON.parse(m[1]); } catch (_) {}
+                                }
+                            }
+                            return null;
+                        }
+                    """)
+                    if isinstance(embedded, dict):
+                        try:
+                            # Attempt to invoke loadTickets in page context with embedded data
+                            await target_context.evaluate("data => { try { loadTickets(data); } catch(e) {} }", embedded)
+                            # After load, re-scan td.place for seats
+                            seats_after = await target_context.query_selector_all("td.place")
+                            for seat in seats_after:
+                                title_attr = await seat.get_attribute("title")
+                                onclick_attr = await seat.get_attribute("onclick")
+                                inner_text = await seat.inner_text()
+                                if title_attr and "Цена" in title_attr:
+                                    available.append(title_attr)
+                                elif onclick_attr and "Цена" in onclick_attr:
+                                    available.append(onclick_attr)
+                                elif inner_text and inner_text != "0" and inner_text.isdigit():
+                                    available.append(f"Seat available (text: {inner_text})")
+                        except Exception as e2:
+                            logger.debug(f"Embedded loadTickets parse/apply failed: {e2}")
+                except Exception as e:
+                    logger.debug(f"Embedded loadTickets search failed: {e}")
+
             # Single concise log line per show
             if len(available) == 0:
                 logger.warning(f"Found 0 seats for {title} at {url} - likely blocked by bot protection")
@@ -845,16 +890,21 @@ async def check_all_shows():
             for direct_url in sorted(seeded_direct_ticket_urls):
                 logger.info(f"Show {direct_url} -> found 1 ticket link (direct)")
 
-            # Load cache and seed from it for speed
-            cache = load_tickets_cache()
-            cached_ticket_urls = set(cache.get("ticket_urls") or [])
-            cached_map = cache.get("show_to_tickets") or {}
+            # Load cache and seed from it for speed (optional)
+            cache = {"ticket_urls": [], "show_to_tickets": {}}
+            cached_ticket_urls = set()
+            cached_map = {}
+            if USE_TICKETS_CACHE:
+                cache = load_tickets_cache()
+                cached_ticket_urls = set(cache.get("ticket_urls") or [])
+                cached_map = cache.get("show_to_tickets") or {}
 
-            # Reuse cached mapping for known show pages
-            for show_url in list(discovered_show_urls):
-                if show_url in cached_map:
-                    for t in cached_map.get(show_url, []):
-                        discovered_ticket_urls.add(t)
+            # Reuse cached mapping for known show pages (optional)
+            if USE_TICKETS_CACHE:
+                for show_url in list(discovered_show_urls):
+                    if show_url in cached_map:
+                        for t in cached_map.get(show_url, []):
+                            discovered_ticket_urls.add(t)
 
             # If still nothing, discover ticket pages by crawling categories (with pagination/scroll), show pages, and buy pages
             if not discovered_ticket_urls and not discovered_show_urls and not cached_ticket_urls:
@@ -1108,11 +1158,12 @@ async def check_all_shows():
 
             # Merge with cached urls and save cache
             # Normalize by stripping fragments to avoid duplicates like trailing '#'
-            all_ticket_urls = sorted(set([_strip_fragment(u) for u in list(discovered_ticket_urls)] + [
+            all_ticket_urls = sorted(set([_strip_fragment(u) for u in list(discovered_ticket_urls)] + ([
                 _strip_fragment(u) for u in list(cached_ticket_urls)
-            ]))
+            ] if USE_TICKETS_CACHE else [])))
             logger.info(f"Discovered {len(discovered_ticket_urls)} ticket pages from {len(discovered_show_urls)} show pages (cache total {len(all_ticket_urls)})")
-            save_tickets_cache({"ticket_urls": all_ticket_urls, "show_to_tickets": cached_map})
+            if USE_TICKETS_CACHE:
+                save_tickets_cache({"ticket_urls": all_ticket_urls, "show_to_tickets": cached_map})
 
             current_seats = {}
             for url in all_ticket_urls:
