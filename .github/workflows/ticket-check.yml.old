@@ -1,0 +1,22 @@
+name: Tickets Check
+
+on:
+  # schedule:
+  #   - cron: '0 12-20 * * 5'
+  #   - cron: '0 9 * * *'  # 12:00 UTC+3
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-tickets:
+    uses: ./.github/workflows/global-checks.yml
+    with:
+      python-version: '3.11'
+      cache-key: 'tickets'
+      cache-path: 'seats.json'
+      script-name: 'tickets.py'
+    secrets:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_IDS: ${{ secrets.CHAT_IDS }} 
