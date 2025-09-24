@@ -5,6 +5,8 @@ import logging
 from typing import List
 
 import requests
+import logging
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -25,7 +27,9 @@ AFISHA_BASE = "https://puppet-minsk.by"
 REMOTE_REPO = os.getenv("REMOTE_REPO", "Dzyamon/tickets")
 REMOTE_BRANCH = os.getenv("REMOTE_SHOWS_BRANCH", "state")
 
-SEATS_OUT_FILE = os.getenv("SELENIUM_SEATS_FILE", "selenium_seats.json")
+SEATS_OUT_FILE = os.getenv("SELENIUM_SEATS_FILE", "seats.json")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_IDS = [c.strip() for c in os.getenv("CHAT_IDS", "").split(",") if c.strip()]
 
 
 def _strip_fragment(url: str) -> str:
@@ -144,8 +148,17 @@ def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
                     seats = filtered
                     break
 
+    # Title of the show if present
+    title_text = ''
+    try:
+        title_el = driver.find_element(By.CSS_SELECTOR, 'h1')
+        title_text = (title_el.text or '').strip()
+    except Exception:
+        title_text = ''
+
     result = {
         "url": url,
+        "title": title_text or 'Unknown Show',
         "count": 0,
         "seats": []
     }
@@ -173,6 +186,8 @@ def main():
     # Load explicit test URLs if provided; else discover from remote shows
     test_urls_env = os.getenv("TCE_TEST_URLS", "").strip()
     ticket_urls: List[str] = []
+    # Build one driver and reuse for both discovery and scraping to avoid re-downloading drivers
+    driver = build_driver()
     if test_urls_env:
         ticket_urls = list({ _strip_fragment(u.strip()) for u in test_urls_env.split(',') if _is_tce_show_link(u.strip()) })
         logger.info(f"Using {len(ticket_urls)} ticket URLs from TCE_TEST_URLS")
@@ -180,14 +195,11 @@ def main():
         show_links = _fetch_remote_shows()
         if not show_links:
             logger.info("No show links to process.")
-            return
-        driver = build_driver()
-        discovered = []
-        try:
-            for s in show_links:
-                discovered.extend(_discover_ticket_urls_from_show(driver, s))
-        finally:
             driver.quit()
+            return
+        discovered = []
+        for s in show_links:
+            discovered.extend(_discover_ticket_urls_from_show(driver, s))
         # unique
         seen = set()
         for u in discovered:
@@ -198,24 +210,74 @@ def main():
 
     if not ticket_urls:
         logger.info("No ticket URLs to scrape.")
-        return
-
-    driver = build_driver()
-    out = {}
-    try:
-        for u in ticket_urls:
-            try:
-                data = scrape_ticket_page(driver, u)
-                out[u] = data
-            except Exception as e:
-                logger.warning(f"Failed to scrape {u}: {e}")
-                continue
-    finally:
         driver.quit()
+        return
+    out = {}
+    for u in ticket_urls:
+        try:
+            data = scrape_ticket_page(driver, u)
+            # Store compact structure with title and count only for seats.json
+            out[u] = {"title": data.get("title", "Unknown Show"), "count": int(data.get("count", 0))}
+        except Exception as e:
+            logger.warning(f"Failed to scrape {u}: {e}")
+            continue
+    driver.quit()
 
+    # Compare with previous seats and optionally send Telegram
+    previous = {}
     try:
+        if os.path.exists(SEATS_OUT_FILE):
+            with open(SEATS_OUT_FILE, "r", encoding="utf-8") as f:
+                previous = json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load previous seats: {e}")
+
+    def send_telegram_message(message: str) -> bool:
+        if not BOT_TOKEN or not CHAT_IDS:
+            logger.info("BOT_TOKEN/CHAT_IDS not set; skipping Telegram notification")
+            return False
+        ok = True
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        for chat_id in CHAT_IDS:
+            try:
+                resp = requests.post(url, data={"chat_id": chat_id, "text": message})
+                if not resp.ok:
+                    logger.error(f"Telegram send failed for {chat_id}: {resp.text}")
+                    ok = False
+            except Exception as ex:
+                logger.error(f"Telegram send error for {chat_id}: {ex}")
+                ok = False
+        return ok
+
+    # Determine if this is first run
+    is_first_run = not bool(previous)
+    # For each URL, if increased, notify
+    if not is_first_run:
+        for url, curr in out.items():
+            try:
+                prev_count = int(((previous or {}).get(url) or {}).get("count", 0))
+                curr_count = int(curr.get("count", 0))
+                if curr_count > prev_count:
+                    delta = curr_count - prev_count
+                    title = curr.get("title", "Unknown Show")
+                    msg = (
+                        f"🎫 New tickets for {title}\n"
+                        f"{url}\n"
+                        f"New: {delta}\n"
+                        f"Total available: {curr_count}"
+                    )
+                    logger.info(f"Notifying increase for {title} {url}: +{delta}")
+                    send_telegram_message(msg)
+            except Exception:
+                continue
+
+    # Save current seats, ordered by show title
+    try:
+        from collections import OrderedDict
+        sorted_items = sorted(out.items(), key=lambda kv: (kv[1].get("title", "").lower(), kv[0]))
+        ordered = OrderedDict(sorted_items)
         with open(SEATS_OUT_FILE, "w", encoding="utf-8") as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
+            json.dump(ordered, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved selenium seats to {SEATS_OUT_FILE}")
     except Exception as e:
         logger.warning(f"Failed to save output: {e}")
