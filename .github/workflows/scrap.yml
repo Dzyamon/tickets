@@ -1,0 +1,42 @@
+# .github/workflows/scraper.yml
+
+# Name of your workflow
+name: Ticket Seat Scraper 🤖
+
+# Controls when the workflow will run
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+  # Runs the job on a schedule (e.g., every 30 minutes)
+  # Uses UTC time. '*/30 * * * *' means "at minute 0, 30 of every hour"
+  schedule:
+    - cron: '*/30 * * * *'
+
+# Defines the job(s) to run
+jobs:
+  scrape_seats:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # 1. Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      # 2. Sets up the Python environment
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Installs the necessary Python packages
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium webdriver-manager
+
+      # 4. Runs your Python script
+      - name: Run the scraper script
+        run: python scrap.py
