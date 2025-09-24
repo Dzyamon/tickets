@@ -53,52 +53,58 @@ def _is_tce_show_link(url: str) -> bool:
         return False
 
 
-def _load_ticket_urls() -> List[str]:
-    # Highest priority: explicit env override
-    test_urls_env = os.getenv("TCE_TEST_URLS", "").strip()
-    if test_urls_env:
-        urls = list({ _strip_fragment(u.strip()) for u in test_urls_env.split(",") if _is_tce_show_link(u.strip()) })
-        if urls:
-            logger.info(f"Using {len(urls)} ticket URLs from TCE_TEST_URLS")
-            return urls
-
-    # Next: tickets_cache.json if present
-    try:
-        cache_path = os.getenv("TICKETS_CACHE_FILE", "local_tickets_cache.json")
-        if os.getenv("GITHUB_ACTIONS") == "true":
-            cache_path = "tickets_cache.json"
-        if os.path.exists(cache_path):
-            with open(cache_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                urls = [ _strip_fragment(u) for u in (data.get("ticket_urls") or []) if _is_tce_show_link(u) ]
-                if urls:
-                    logger.info(f"Using {len(urls)} ticket URLs from {cache_path}")
-                    return urls
-    except Exception as e:
-        logger.warning(f"Failed to read tickets cache: {e}")
-
-    # Fallback: remote shows.json and filter direct tce links if any
+def _fetch_remote_shows() -> List[str]:
     try:
         raw_url = f"https://raw.githubusercontent.com/{REMOTE_REPO}/{REMOTE_BRANCH}/shows.json"
         logger.info(f"Fetching remote shows from {raw_url}")
-        resp = requests.get(raw_url, timeout=15)
-        if resp.status_code == 200:
-            shows = resp.json()
-            results = []
-            for s in shows or []:
-                link = s.get("link") if isinstance(s, dict) else (s if isinstance(s, str) else None)
-                if not link:
-                    continue
-                if _is_tce_show_link(link):
-                    results.append(_strip_fragment(link))
-            if results:
-                logger.info(f"Using {len(results)} ticket URLs from remote shows.json")
-                return results
+        resp = requests.get(raw_url, timeout=20)
+        if resp.status_code != 200:
+            logger.warning(f"Remote shows fetch failed: {resp.status_code}")
+            return []
+        shows = resp.json()
+        links = []
+        for s in shows or []:
+            link = s.get("link") if isinstance(s, dict) else (s if isinstance(s, str) else None)
+            if isinstance(link, str):
+                links.append(_strip_fragment(link))
+        logger.info(f"Loaded {len(links)} shows from remote state branch")
+        return links
     except Exception as e:
         logger.warning(f"Failed to load remote shows: {e}")
+        return []
 
-    logger.info("No ticket URLs found from any source")
-    return []
+
+def _discover_ticket_urls_from_show(driver: webdriver.Chrome, show_url: str) -> List[str]:
+    urls = []
+    try:
+        driver.get(show_url)
+        time.sleep(1.2)
+        anchors = driver.find_elements(By.CSS_SELECTOR, "a[href*='tce.by/shows.html']")
+        for a in anchors:
+            try:
+                href = a.get_attribute('href')
+                if _is_tce_show_link(href):
+                    urls.append(_strip_fragment(href))
+            except Exception:
+                continue
+        iframes = driver.find_elements(By.CSS_SELECTOR, "iframe[src*='tce.by/shows.html']")
+        for fr in iframes:
+            try:
+                src = fr.get_attribute('src')
+                if _is_tce_show_link(src):
+                    urls.append(_strip_fragment(src))
+            except Exception:
+                continue
+    except Exception as e:
+        logger.debug(f"Show {show_url} discovery failed: {e}")
+    # unique preserve order
+    seen = set()
+    result = []
+    for u in urls:
+        if u not in seen:
+            seen.add(u)
+            result.append(u)
+    return result
 
 
 def build_driver() -> webdriver.Chrome:
@@ -164,15 +170,40 @@ def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
 
 
 def main():
-    urls = _load_ticket_urls()
-    if not urls:
-        logger.info("Nothing to process.")
+    # Load explicit test URLs if provided; else discover from remote shows
+    test_urls_env = os.getenv("TCE_TEST_URLS", "").strip()
+    ticket_urls: List[str] = []
+    if test_urls_env:
+        ticket_urls = list({ _strip_fragment(u.strip()) for u in test_urls_env.split(',') if _is_tce_show_link(u.strip()) })
+        logger.info(f"Using {len(ticket_urls)} ticket URLs from TCE_TEST_URLS")
+    else:
+        show_links = _fetch_remote_shows()
+        if not show_links:
+            logger.info("No show links to process.")
+            return
+        driver = build_driver()
+        discovered = []
+        try:
+            for s in show_links:
+                discovered.extend(_discover_ticket_urls_from_show(driver, s))
+        finally:
+            driver.quit()
+        # unique
+        seen = set()
+        for u in discovered:
+            if u not in seen and _is_tce_show_link(u):
+                seen.add(u)
+                ticket_urls.append(u)
+        logger.info(f"Discovered {len(ticket_urls)} ticket pages from {len(show_links)} shows")
+
+    if not ticket_urls:
+        logger.info("No ticket URLs to scrape.")
         return
 
     driver = build_driver()
     out = {}
     try:
-        for u in urls:
+        for u in ticket_urls:
             try:
                 data = scrape_ticket_page(driver, u)
                 out[u] = data

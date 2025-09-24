@@ -4,6 +4,15 @@ name: Ticket Seat Scraper 🤖
 
 on:
   workflow_dispatch:
+    inputs:
+      test_urls:
+        description: 'Comma-separated TCE ticket URLs (optional)'
+        required: false
+        default: ''
+      seats_out_file:
+        description: 'Output JSON filename (optional)'
+        required: false
+        default: 'selenium_seats.json'
   schedule:
     - cron: '*/30 * * * *'
 
@@ -14,24 +23,36 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+
+      - name: Set up Google Chrome
+        uses: browser-actions/setup-chrome@v1
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install selenium webdriver-manager
+          pip install selenium webdriver-manager requests
 
-      - name: Run the scraper script
-        run: python scrap.py
+      - name: Run Selenium seats scraper
+        env:
+          TCE_TEST_URLS: ${{ github.event.inputs.test_urls }}
+          SELENIUM_SEATS_FILE: ${{ github.event.inputs.seats_out_file }}
+        run: |
+          python selenium_seats.py
 
-      # 👇 ADD THIS STEP TO SAVE THE SCREENSHOT
+      - name: Upload seats JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-seats
+          path: ${{ github.event.inputs.seats_out_file }}
+
       - name: Upload screenshot artifact on failure
-        # This step will only run if the previous step (running the script) fails
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: error-screenshot
-          path: error_screenshot.png # The name of the file your script creates
+          path: error_screenshot.png
