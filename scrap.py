@@ -30,13 +30,19 @@ def find_available_seats():
         driver.get(URL)
         print("Page loaded in headless mode. Waiting for seat map...")
 
-        # --- This selector is still the most likely point of failure ---
-        seat_selector = "div.seat.available" # This is a placeholder!
+        seat_selector = 'td.place[title*="Цена"]'
+        
+        print(f"Searching for elements with selector: '{seat_selector}'")
 
         wait = WebDriverWait(driver, 20)
         available_seats = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, seat_selector)))
 
-        print(f"✅ Found {len(available_seats)} available seats.")
+        print(f"✅ Found {len(available_seats)} available seats with a price.")
+        
+        # Optional: Print details for the first few seats found
+        for i, seat in enumerate(available_seats[:5]):
+            seat_title = seat.get_attribute('title')
+            print(f"  - Seat {i+1}: {seat_title}")
 
     # 👇 CATCH THE SPECIFIC TIMEOUT EXCEPTION
     except TimeoutException:
