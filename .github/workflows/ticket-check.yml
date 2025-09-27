@@ -1,74 +1,18 @@
-# .github/workflows/scraper.yml
-
 name: Ticket Check 
 
 on:
-  workflow_dispatch:
-    inputs:
-      test_urls:
-        description: 'Comma-separated TCE ticket URLs (optional)'
-        required: false
-        default: ''
-      seats_out_file:
-        description: 'Output JSON filename (optional)'
-        required: false
-        default: 'tickets.json'
   schedule:
     - cron: '0 10,15 * * 3,5'
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
-  scrape_seats:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up Google Chrome
-        uses: browser-actions/setup-chrome@v1
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install selenium webdriver-manager requests
-
-      - name: Run Selenium seats scraper
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_IDS: ${{ secrets.CHAT_IDS }}
-          TCE_TEST_URLS: ${{ github.event.inputs.test_urls }}
-        run: |
-          python tickets.py
-
-      - name: Upload seats JSON
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: selenium-seats
-          path: seats.json
-
-      - name: Commit and push seats.json to state branch
-        if: always()
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git fetch origin state:state || git checkout --orphan state
-          cp seats.json /tmp/seats.json || true
-          rm -f seats.json
-          git checkout state
-          cp /tmp/seats.json seats.json || true
-          git add seats.json || true
-          git commit -m "Update seats.json from Selenium run [skip ci]" || echo "No changes to commit"
-          git push origin state
-          git checkout $GITHUB_REF_NAME
-
-      - name: Upload screenshot artifact on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: error-screenshot
-          path: error_screenshot.png
+  check-tickets:
+    uses: ./.github/workflows/global-checks.yml
+    with:
+      python-version: '3.11'
+      cache-key: 'tickets'
+      cache-path: 'seats.json'
+      script-name: 'tickets.py'
+    secrets:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_IDS: ${{ secrets.CHAT_IDS }}
