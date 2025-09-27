@@ -251,22 +251,27 @@ def main():
 
     # Determine if this is first run
     is_first_run = not bool(previous)
-    # For each URL, if increased, notify
+    # For each URL, notify if seats available and count changed
     if not is_first_run:
         for url, curr in out.items():
             try:
                 prev_count = int(((previous or {}).get(url) or {}).get("count", 0))
                 curr_count = int(curr.get("count", 0))
-                if curr_count > prev_count:
-                    delta = curr_count - prev_count
-                    title = curr.get("title", "Unknown Show")
-                    msg = (
-                        f"🎫 New tickets for {title}\n"
-                        f"{url}\n"
-                        f"New: {delta}\n"
-                        f"Total available: {curr_count}"
-                    )
-                    logger.info(f"Notifying increase for {title} {url}: +{delta}")
+                title = curr.get("title", "Unknown Show")
+                
+                # Send notification if:
+                # 1. Current count > 0 (seats available)
+                # 2. Count has changed from previous run
+                if curr_count > 0 and curr_count != prev_count:
+                    msg = f"{title} - {url} - {curr_count} tickets available"
+                    
+                    if curr_count > prev_count:
+                        delta = curr_count - prev_count
+                        logger.info(f"Notifying increase for {title} {url}: +{delta}")
+                    else:
+                        delta = prev_count - curr_count
+                        logger.info(f"Notifying decrease for {title} {url}: -{delta}")
+                    
                     send_telegram_message(msg)
             except Exception:
                 continue
