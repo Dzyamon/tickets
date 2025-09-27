@@ -58,6 +58,7 @@ jobs:
           git config user.email "github-actions@github.com"
           git fetch origin state:state || git checkout --orphan state
           cp seats.json /tmp/seats.json || true
+          rm -f seats.json
           git checkout state
           cp /tmp/seats.json seats.json || true
           git add seats.json || true
