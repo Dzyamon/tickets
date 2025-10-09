@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+import re
 from typing import List
 
 import requests
@@ -125,6 +126,37 @@ def build_driver() -> webdriver.Chrome:
     return webdriver.Chrome(service=service, options=options)
 
 
+def _extract_show_date(driver: webdriver.Chrome) -> str:
+    """Try to extract show date in DD.MM.YYYY format from the current page.
+    Tries common selectors first, then falls back to regex over the full HTML.
+    """
+    # Try obvious date containers by CSS
+    candidate_selectors = [
+        "div.date, span.date, .performance-date, .event-date, .show-date",
+        "h2, h3, .subtitle, .info, .details",
+    ]
+    date_pattern = re.compile(r"\b(\d{2}\.\d{2}\.\d{4})\b")
+    for sel in candidate_selectors:
+        try:
+            elements = driver.find_elements(By.CSS_SELECTOR, sel)
+            for el in elements:
+                text = (el.text or "").strip()
+                m = date_pattern.search(text)
+                if m:
+                    return m.group(1)
+        except Exception:
+            pass
+    # Fallback: search the entire page source
+    try:
+        html = driver.page_source or ""
+        m = date_pattern.search(html)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return ""
+
+
 def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
     driver.get(url)
     logger.info(f"Opened ticket page: {url}")
@@ -156,11 +188,15 @@ def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
     except Exception:
         title_text = ''
 
+    # Attempt to capture the show date as early as possible
+    date_text = _extract_show_date(driver)
+
     result = {
         "url": url,
         "title": title_text or 'Unknown Show',
         "count": 0,
-        "seats": []
+        "seats": [],
+        "date": date_text
     }
 
     if not seats:
@@ -217,7 +253,11 @@ def main():
         try:
             data = scrape_ticket_page(driver, u)
             # Store compact structure with title and count only for seats.json
-            out[u] = {"title": data.get("title", "Unknown Show"), "count": int(data.get("count", 0))}
+            out[u] = {
+                "title": data.get("title", "Unknown Show"),
+                "count": int(data.get("count", 0)),
+                "date": data.get("date", "")
+            }
         except Exception as e:
             logger.warning(f"Failed to scrape {u}: {e}")
             continue
@@ -258,12 +298,17 @@ def main():
                 prev_count = int(((previous or {}).get(url) or {}).get("count", 0))
                 curr_count = int(curr.get("count", 0))
                 title = curr.get("title", "Unknown Show")
+                date_str = curr.get("date", "") or ""
                 
                 # Send notification if:
                 # 1. Current count > 0 (seats available)
                 # 2. Count has changed from previous run
                 if curr_count > 0 and curr_count != prev_count:
-                    msg = f"{title} - {url} - {curr_count} tickets available"
+                    # Message format: Show name - X tickets available - Date - url
+                    if date_str:
+                        msg = f"{title} - {curr_count} tickets available - {date_str} - {url}"
+                    else:
+                        msg = f"{title} - {curr_count} tickets available - {url}"
                     
                     if curr_count > prev_count:
                         delta = curr_count - prev_count
