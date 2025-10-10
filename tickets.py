@@ -157,6 +157,18 @@ def _extract_show_date(driver: webdriver.Chrome) -> str:
     return ""
 
 
+def _date_sort_key(date_str: str):
+    """Return a tuple (yyyy, mm, dd) for sorting; unknown dates go last."""
+    try:
+        m = re.search(r"^(\d{2})\.(\d{2})\.(\d{4})$", (date_str or "").strip())
+        if not m:
+            return (9999, 12, 31)
+        dd, mm, yyyy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return (yyyy, mm, dd)
+    except Exception:
+        return (9999, 12, 31)
+
+
 def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
     driver.get(url)
     logger.info(f"Opened ticket page: {url}")
@@ -289,37 +301,31 @@ def main():
                 ok = False
         return ok
 
-    # Determine if this is first run
-    is_first_run = not bool(previous)
-    # For each URL, notify if seats available and count changed
-    if not is_first_run:
-        for url, curr in out.items():
-            try:
-                prev_count = int(((previous or {}).get(url) or {}).get("count", 0))
-                curr_count = int(curr.get("count", 0))
-                title = curr.get("title", "Unknown Show")
-                date_str = curr.get("date", "") or ""
-                
-                # Send notification if:
-                # 1. Current count > 0 (seats available)
-                # 2. Count has changed from previous run
-                if curr_count > 0 and curr_count != prev_count:
-                    # Message format: Show name - X tickets available - Date - url
-                    if date_str:
-                        msg = f"{title} - {curr_count} tickets available - {date_str} - {url}"
-                    else:
-                        msg = f"{title} - {curr_count} tickets available - {url}"
-                    
-                    if curr_count > prev_count:
-                        delta = curr_count - prev_count
-                        logger.info(f"Notifying increase for {title} {url}: +{delta}")
-                    else:
-                        delta = prev_count - curr_count
-                        logger.info(f"Notifying decrease for {title} {url}: -{delta}")
-                    
-                    send_telegram_message(msg)
-            except Exception:
+    # Send notifications for all shows with tickets available (>0), sorted by date
+    # Build a list of items with current count, only those with count > 0
+    notify_items = []
+    for url, curr in out.items():
+        try:
+            curr_count = int(curr.get("count", 0))
+            if curr_count <= 0:
                 continue
+            title = curr.get("title", "Unknown Show")
+            date_str = curr.get("date", "") or ""
+            notify_items.append((url, title, curr_count, date_str))
+        except Exception:
+            continue
+
+    # Sort by date ascending (unknown dates last)
+    notify_items.sort(key=lambda item: _date_sort_key(item[3]))
+
+    # Send per-item messages in requested format
+    for url, title, count, date_str in notify_items:
+        if date_str:
+            msg = f"{date_str} - {title} - {count} tickets available - {url}"
+        else:
+            msg = f"{title} - {count} tickets available - {url}"
+        logger.info(f"Notifying availability for {title} {url}: {count}")
+        send_telegram_message(msg)
 
     # Save current seats, ordered by show title
     try:

@@ -2,7 +2,7 @@ name: Ticket Check
 
 on:
   schedule:
-    - cron: '0 10,15 * * 3,5'
+    - cron: '0 10 * * 1'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
