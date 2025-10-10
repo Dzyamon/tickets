@@ -82,6 +82,18 @@ def _fetch_remote_shows() -> List[Dict[str, Any]]:
         return []
 
 
+def _filter_shows_for_weekend(shows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter shows to only include those scheduled for the upcoming weekend (Saturday/Sunday)."""
+    weekend_dates = set(_upcoming_weekend_dates())
+    filtered = []
+    for show in shows:
+        show_dates = set(show.get("dates", []))
+        if show_dates.intersection(weekend_dates):
+            filtered.append(show)
+    logger.info(f"Filtered {len(filtered)} weekend shows from {len(shows)} total shows")
+    return filtered
+
+
 def _discover_ticket_urls_from_show(driver: webdriver.Chrome, show_url: str) -> List[str]:
     urls = []
     try:
@@ -261,6 +273,19 @@ def main():
             logger.info("No show links to process.")
             driver.quit()
             return
+        
+        # Determine if we should restrict to nearest weekend dates (Friday check workflow)
+        workflow_name = os.getenv("GITHUB_WORKFLOW", "").strip()
+        weekend_only = (workflow_name == "Friday check") or (datetime.utcnow().weekday() == 4)
+        
+        if weekend_only:
+            logger.info("Weekend-only mode: filtering shows for upcoming Saturday/Sunday")
+            show_items = _filter_shows_for_weekend(show_items)
+            if not show_items:
+                logger.info("No shows scheduled for upcoming weekend.")
+                driver.quit()
+                return
+        
         discovered = []
         for s in show_items:
             link = s.get("link") if isinstance(s, dict) else None
@@ -320,11 +345,6 @@ def main():
                 ok = False
         return ok
 
-    # Determine if we should restrict to nearest weekend dates (Friday check workflow)
-    workflow_name = os.getenv("GITHUB_WORKFLOW", "").strip()
-    # Enable weekend filter automatically on Fridays (UTC) or when running the "Friday check" workflow
-    weekend_only = (workflow_name == "Friday check") or (datetime.utcnow().weekday() == 4)
-
     # Send notifications for all shows with tickets available (>0), sorted by date
     # Build a list of items with current count, only those with count > 0
     notify_items = []
@@ -338,11 +358,6 @@ def main():
             notify_items.append((url, title, curr_count, date_str))
         except Exception:
             continue
-
-    # If weekend-only mode, keep only Sat/Sun of the upcoming weekend
-    if weekend_only:
-        weekend_dates = set(_upcoming_weekend_dates())
-        notify_items = [it for it in notify_items if it[3] in weekend_dates]
 
     # Sort by date ascending (unknown dates last)
     notify_items.sort(key=lambda item: _date_sort_key(item[3]))

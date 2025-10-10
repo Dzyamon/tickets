@@ -175,8 +175,37 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     unique_links = _dedupe_normalize_filter_to_links(shows)
                     logger.info(f"Successfully retrieved {len(shows)} shows ({len(unique_links)} unique)")
                 except Exception:
-                    logger.info(f"Successfully retrieved {len(shows)} shows")
-                return shows
+                    unique_links = []
+
+                # Enrich each show with available dates from its page
+                enriched = []
+                try:
+                    for show_link in unique_links:
+                        try:
+                            # Open show page
+                            await page.goto(show_link, wait_until='domcontentloaded')
+                            await page.wait_for_timeout(500)
+                            # Extract texts from date-time blocks
+                            date_texts = await page.eval_on_selector_all(
+                                "div.date-time p",
+                                "els => els.map(e => (e.textContent||'').trim()).filter(Boolean)"
+                            )
+                            parsed_dates = []
+                            for dt in date_texts or []:
+                                ddmmyyyy = _parse_ru_date_text_to_ddmmyyyy(dt)
+                                if ddmmyyyy and ddmmyyyy not in parsed_dates:
+                                    parsed_dates.append(ddmmyyyy)
+                            enriched.append({"link": show_link, "dates": parsed_dates})
+                        except Exception as e:
+                            logger.debug(f"Failed to extract dates from {show_link}: {e}")
+                            enriched.append({"link": show_link, "dates": []})
+                except Exception as e:
+                    logger.warning(f"Failed enriching dates: {e}")
+                    # Fallback to simple links if date extraction fails
+                    enriched = [{"link": link, "dates": []} for link in unique_links]
+
+                logger.info(f"Successfully retrieved {len(enriched)} enriched shows")
+                return enriched
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
             if context:
@@ -234,20 +263,54 @@ def _dedupe_normalize_filter_to_links(shows):
             result.append(normalized)
     return result
 
+RU_MONTH_TO_MM = {
+    "января": "01", "февраля": "02", "марта": "03", "апреля": "04",
+    "мая": "05", "июня": "06", "июля": "07", "августа": "08",
+    "сентября": "09", "октября": "10", "ноября": "11", "декабря": "12",
+    # Title-case variants
+    "Января": "01", "Февраля": "02", "Марта": "03", "Апреля": "04",
+    "Мая": "05", "Июня": "06", "Июля": "07", "Августа": "08",
+    "Сентября": "09", "Октября": "10", "Ноября": "11", "Декабря": "12",
+}
+
+def _parse_ru_date_text_to_ddmmyyyy(text: str) -> str:
+    """Parse Russian date text like '11 Октября, Суббота, 11:00' to '11.10.2025' format."""
+    try:
+        import re
+        m = re.search(r"(\d{1,2})\s+([А-Яа-яA-Za-z]+)", text or "")
+        if not m:
+            return ""
+        day = int(m.group(1))
+        mon_word = m.group(2)
+        mm = RU_MONTH_TO_MM.get(mon_word)
+        if not mm:
+            return ""
+        yyyy = datetime.utcnow().year
+        return f"{day:02d}.{mm}.{yyyy}"
+    except Exception:
+        return ""
+
 def save_shows(shows):
     try:
-        clean_links = _dedupe_normalize_filter_to_links(shows)
+        # If shows is already enriched (list of dicts with link and dates), use as-is
+        if shows and isinstance(shows[0], dict) and "link" in shows[0]:
+            enriched_shows = shows
+        else:
+            # If shows is a list of strings, convert to enriched format
+            clean_links = _dedupe_normalize_filter_to_links(shows)
+            enriched_shows = [{"link": link, "dates": []} for link in clean_links]
+        
         with open(SHOWS_FILE, "w", encoding="utf-8") as f:
-            json.dump(clean_links, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved {len(clean_links)} shows to {SHOWS_FILE}")
+            json.dump(enriched_shows, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(enriched_shows)} enriched shows to {SHOWS_FILE}")
     except Exception as e:
         logger.error(f"Error saving shows: {e}")
 
 def find_new_shows(old, new):
-    """Return list[str] of normalized links that are new compared to `old`.
+    """Return list[dict] of enriched show objects that are new compared to `old`.
 
     Accepts `old` and `new` as lists of either strings (links) or dicts with a
-    `link` key. Always returns a list of normalized absolute link strings.
+    `link` key. Always returns a list of enriched show objects with link and dates.
     Filters out `/afisha` path entries.
     """
     def extract_link(entry):
@@ -257,17 +320,28 @@ def find_new_shows(old, new):
             return entry
         return None
 
-    # Normalize and collect old links
-    old_links_normalized = set(_dedupe_normalize_filter_to_links(old))
+    def normalize_link(link):
+        if not link:
+            return None
+        return link if link.startswith("http") else urljoin(AFISHA_BASE, link)
 
-    # Normalize new items and collect only those not present in old
-    result_links = []
+    # Normalize and collect old links
+    old_links_normalized = set()
+    for item in old:
+        link = extract_link(item)
+        if link:
+            normalized = normalize_link(link)
+            if normalized and not _is_afisha_path(link) and not _is_afisha_path(normalized):
+                old_links_normalized.add(normalized)
+
+    # Process new items and collect only those not present in old
+    result_shows = []
     seen_in_result = set()
     for item in new:
         link = extract_link(item)
         if not link:
             continue
-        normalized = link if link.startswith("http") else urljoin(AFISHA_BASE, link)
+        normalized = normalize_link(link)
         if _is_afisha_path(link) or _is_afisha_path(normalized):
             continue
         if normalized in old_links_normalized:
@@ -275,14 +349,19 @@ def find_new_shows(old, new):
         if normalized in seen_in_result:
             continue
         seen_in_result.add(normalized)
-        result_links.append(normalized)
+        
+        # Create enriched show object
+        if isinstance(item, dict) and "dates" in item:
+            result_shows.append(item)
+        else:
+            result_shows.append({"link": normalized, "dates": []})
 
     try:
         unique_new_normalized = _dedupe_normalize_filter_to_links(new)
-        logger.info(f"Found {len(result_links)} new shows out of {len(unique_new_normalized)} unique shows")
+        logger.info(f"Found {len(result_shows)} new shows out of {len(unique_new_normalized)} unique shows")
     except Exception:
-        logger.info(f"Found {len(result_links)} new shows out of {len(new)} total shows")
-    return result_links
+        logger.info(f"Found {len(result_shows)} new shows out of {len(new)} total shows")
+    return result_shows
 
 def main():
     try:
@@ -324,16 +403,32 @@ def main():
         new_shows = find_new_shows(previous_shows, current_shows)
         
         if new_shows:
-            # Create a concise message with links only
+            # Create a concise message with links and dates
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             if len(new_shows) <= 10:
-                show_list = "\n".join(f"• {link}" for link in new_shows)
-                msg = f"🎭 New shows added at {timestamp}:\n\n{show_list}"
+                show_list = []
+                for show in new_shows:
+                    link = show.get("link", "")
+                    dates = show.get("dates", [])
+                    if dates:
+                        dates_str = ", ".join(dates)
+                        show_list.append(f"• {link} ({dates_str})")
+                    else:
+                        show_list.append(f"• {link}")
+                msg = f"🎭 New shows added at {timestamp}:\n\n" + "\n".join(show_list)
             else:
-                first_shows = "\n".join(f"• {link}" for link in new_shows[:5])
+                first_shows = []
+                for show in new_shows[:5]:
+                    link = show.get("link", "")
+                    dates = show.get("dates", [])
+                    if dates:
+                        dates_str = ", ".join(dates)
+                        first_shows.append(f"• {link} ({dates_str})")
+                    else:
+                        first_shows.append(f"• {link}")
                 remaining_count = len(new_shows) - 5
-                msg = f"🎭 {len(new_shows)} new shows added at {timestamp}:\n\n{first_shows}\n\n... and {remaining_count} more shows"
+                msg = f"🎭 {len(new_shows)} new shows added at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows"
 
             logger.info(f"Found {len(new_shows)} new shows")
             send_telegram_message(msg)
