@@ -4,10 +4,8 @@ import time
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Dict, Any
 
-import requests
-import logging
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -59,7 +57,7 @@ def _is_tce_show_link(url: str) -> bool:
         return False
 
 
-def _fetch_remote_shows() -> List[str]:
+def _fetch_remote_shows() -> List[Dict[str, Any]]:
     try:
         raw_url = f"https://raw.githubusercontent.com/{REMOTE_REPO}/{REMOTE_BRANCH}/shows.json"
         logger.info(f"Fetching remote shows from {raw_url}")
@@ -68,13 +66,17 @@ def _fetch_remote_shows() -> List[str]:
             logger.warning(f"Remote shows fetch failed: {resp.status_code}")
             return []
         shows = resp.json()
-        links = []
+        enriched = []
         for s in shows or []:
-            link = s.get("link") if isinstance(s, dict) else (s if isinstance(s, str) else None)
-            if isinstance(link, str):
-                links.append(_strip_fragment(link))
-        logger.info(f"Loaded {len(links)} shows from remote state branch")
-        return links
+            if isinstance(s, str):
+                enriched.append({"link": _strip_fragment(s), "dates": []})
+            elif isinstance(s, dict):
+                link = s.get("link") or s.get("url")
+                if isinstance(link, str):
+                    rec = {"link": _strip_fragment(link), "dates": s.get("dates") or []}
+                    enriched.append(rec)
+        logger.info(f"Loaded {len(enriched)} shows from remote state branch")
+        return enriched
     except Exception as e:
         logger.warning(f"Failed to load remote shows: {e}")
         return []
@@ -254,21 +256,24 @@ def main():
         ticket_urls = list({ _strip_fragment(u.strip()) for u in test_urls_env.split(',') if _is_tce_show_link(u.strip()) })
         logger.info(f"Using {len(ticket_urls)} ticket URLs from TCE_TEST_URLS")
     else:
-        show_links = _fetch_remote_shows()
-        if not show_links:
+        show_items = _fetch_remote_shows()
+        if not show_items:
             logger.info("No show links to process.")
             driver.quit()
             return
         discovered = []
-        for s in show_links:
-            discovered.extend(_discover_ticket_urls_from_show(driver, s))
+        for s in show_items:
+            link = s.get("link") if isinstance(s, dict) else None
+            if not link:
+                continue
+            discovered.extend(_discover_ticket_urls_from_show(driver, link))
         # unique
         seen = set()
         for u in discovered:
             if u not in seen and _is_tce_show_link(u):
                 seen.add(u)
                 ticket_urls.append(u)
-        logger.info(f"Discovered {len(ticket_urls)} ticket pages from {len(show_links)} shows")
+        logger.info(f"Discovered {len(ticket_urls)} ticket pages from {len(show_items)} shows")
 
     if not ticket_urls:
         logger.info("No ticket URLs to scrape.")
@@ -317,7 +322,8 @@ def main():
 
     # Determine if we should restrict to nearest weekend dates (Friday check workflow)
     workflow_name = os.getenv("GITHUB_WORKFLOW", "").strip()
-    weekend_only = os.getenv("WEEKEND_ONLY", "").strip() in {"1", "true", "True", "yes"} or workflow_name == "Friday check"
+    # Enable weekend filter automatically on Fridays (UTC) or when running the "Friday check" workflow
+    weekend_only = (workflow_name == "Friday check") or (datetime.utcnow().weekday() == 4)
 
     # Send notifications for all shows with tickets available (>0), sorted by date
     # Build a list of items with current count, only those with count > 0
@@ -349,7 +355,7 @@ def main():
             msg = f"{title} - {count} tickets available - {url}"
         logger.info(f"Notifying availability for {title} {url}: {count}")
         send_telegram_message(msg)
-
+        
     # Save current seats, ordered by show title
     try:
         from collections import OrderedDict

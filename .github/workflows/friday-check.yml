@@ -13,8 +13,6 @@ jobs:
       cache-key: 'tickets-friday'
       cache-path: 'seats.json'
       script-name: 'tickets.py'
-      weekend-only: '1'
     secrets:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_IDS: ${{ secrets.CHAT_IDS }}
-
