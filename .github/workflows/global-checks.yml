@@ -15,6 +15,10 @@ on:
       script-name:
         required: true
         type: string
+      weekend-only:
+        required: false
+        type: string
+        default: ''
     secrets:
       BOT_TOKEN:
         required: true
@@ -86,6 +90,7 @@ jobs:
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         CHAT_IDS: ${{ secrets.CHAT_IDS }}
+        WEEKEND_ONLY: ${{ inputs.weekend-only }}
       run: python ${{ inputs.script-name }}
 
     - name: Save updated shows.json and seats.json to temp
