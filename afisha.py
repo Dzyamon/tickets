@@ -308,12 +308,15 @@ def save_shows(shows):
     except Exception as e:
         logger.error(f"Error saving shows: {e}")
 
-def find_new_shows(old, new):
-    """Return list[dict] of enriched show objects that are new compared to `old`.
+def find_changed_shows(old, new):
+    """Return dict with 'new' and 'changed' shows compared to `old`.
 
-    Accepts `old` and `new` as lists of either strings (links) or dicts with a
-    `link` key. Always returns a list of enriched show objects with link and dates.
-    Filters out `/afisha` path entries.
+    Returns:
+        {
+            'new': [list of new show objects],
+            'changed': [list of shows with changed dates],
+            'unchanged': [list of unchanged shows]
+        }
     """
     def extract_link(entry):
         if isinstance(entry, dict):
@@ -327,18 +330,29 @@ def find_new_shows(old, new):
             return None
         return link if link.startswith("http") else urljoin(AFISHA_BASE, link)
 
-    # Normalize and collect old links
-    old_links_normalized = set()
+    def extract_dates(entry):
+        if isinstance(entry, dict):
+            return set(entry.get("dates", []))
+        return set()
+
+    # Build old shows lookup by normalized link
+    old_shows_by_link = {}
     for item in old:
         link = extract_link(item)
         if link:
             normalized = normalize_link(link)
             if normalized and not _is_afisha_path(link) and not _is_afisha_path(normalized):
-                old_links_normalized.add(normalized)
+                old_shows_by_link[normalized] = {
+                    'link': normalized,
+                    'dates': extract_dates(item)
+                }
 
-    # Process new items and collect only those not present in old
-    result_shows = []
+    # Process new items
+    new_shows = []
+    changed_shows = []
+    unchanged_shows = []
     seen_in_result = set()
+
     for item in new:
         link = extract_link(item)
         if not link:
@@ -346,24 +360,34 @@ def find_new_shows(old, new):
         normalized = normalize_link(link)
         if _is_afisha_path(link) or _is_afisha_path(normalized):
             continue
-        if normalized in old_links_normalized:
-            continue
         if normalized in seen_in_result:
             continue
         seen_in_result.add(normalized)
-        
+
         # Create enriched show object
         if isinstance(item, dict) and "dates" in item:
-            result_shows.append(item)
+            new_show = item
         else:
-            result_shows.append({"link": normalized, "dates": []})
+            new_show = {"link": normalized, "dates": []}
+        
+        new_dates = extract_dates(new_show)
 
-    try:
-        unique_new_normalized = _dedupe_normalize_filter_to_links(new)
-        logger.info(f"Found {len(result_shows)} new shows out of {len(unique_new_normalized)} unique shows")
-    except Exception:
-        logger.info(f"Found {len(result_shows)} new shows out of {len(new)} total shows")
-    return result_shows
+        if normalized in old_shows_by_link:
+            old_dates = old_shows_by_link[normalized]['dates']
+            if new_dates != old_dates:
+                changed_shows.append(new_show)
+                logger.info(f"Show dates changed for {normalized}: {sorted(old_dates)} -> {sorted(new_dates)}")
+            else:
+                unchanged_shows.append(new_show)
+        else:
+            new_shows.append(new_show)
+
+    logger.info(f"Found {len(new_shows)} new shows, {len(changed_shows)} changed shows, {len(unchanged_shows)} unchanged shows")
+    return {
+        'new': new_shows,
+        'changed': changed_shows,
+        'unchanged': unchanged_shows
+    }
 
 def main():
     try:
@@ -402,41 +426,72 @@ def main():
             save_shows(current_shows)
             return
             
-        new_shows = find_new_shows(previous_shows, current_shows)
+        changes = find_changed_shows(previous_shows, current_shows)
+        new_shows = changes['new']
+        changed_shows = changes['changed']
         
-        if new_shows:
-            # Create a concise message with links and dates
+        # Send notifications for new and changed shows
+        if new_shows or changed_shows:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            messages = []
 
-            if len(new_shows) <= 10:
-                show_list = []
-                for show in new_shows:
-                    link = show.get("link", "")
-                    dates = show.get("dates", [])
-                    if dates:
-                        dates_str = ", ".join(dates)
-                        show_list.append(f"• {link} ({dates_str})")
-                    else:
-                        show_list.append(f"• {link}")
-                msg = f"🎭 New shows added at {timestamp}:\n\n" + "\n".join(show_list)
-            else:
-                first_shows = []
-                for show in new_shows[:5]:
-                    link = show.get("link", "")
-                    dates = show.get("dates", [])
-                    if dates:
-                        dates_str = ", ".join(dates)
-                        first_shows.append(f"• {link} ({dates_str})")
-                    else:
-                        first_shows.append(f"• {link}")
-                remaining_count = len(new_shows) - 5
-                msg = f"🎭 {len(new_shows)} new shows added at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows"
+            if new_shows:
+                if len(new_shows) <= 10:
+                    show_list = []
+                    for show in new_shows:
+                        link = show.get("link", "")
+                        dates = show.get("dates", [])
+                        if dates:
+                            dates_str = ", ".join(dates)
+                            show_list.append(f"• {link} ({dates_str})")
+                        else:
+                            show_list.append(f"• {link}")
+                    messages.append(f"🎭 New shows added at {timestamp}:\n\n" + "\n".join(show_list))
+                else:
+                    first_shows = []
+                    for show in new_shows[:5]:
+                        link = show.get("link", "")
+                        dates = show.get("dates", [])
+                        if dates:
+                            dates_str = ", ".join(dates)
+                            first_shows.append(f"• {link} ({dates_str})")
+                        else:
+                            first_shows.append(f"• {link}")
+                    remaining_count = len(new_shows) - 5
+                    messages.append(f"🎭 {len(new_shows)} new shows added at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows")
 
-            logger.info(f"Found {len(new_shows)} new shows")
-            send_telegram_message(msg)
+            if changed_shows:
+                if len(changed_shows) <= 10:
+                    show_list = []
+                    for show in changed_shows:
+                        link = show.get("link", "")
+                        dates = show.get("dates", [])
+                        if dates:
+                            dates_str = ", ".join(dates)
+                            show_list.append(f"• {link} ({dates_str})")
+                        else:
+                            show_list.append(f"• {link}")
+                    messages.append(f"📅 Show dates updated at {timestamp}:\n\n" + "\n".join(show_list))
+                else:
+                    first_shows = []
+                    for show in changed_shows[:5]:
+                        link = show.get("link", "")
+                        dates = show.get("dates", [])
+                        if dates:
+                            dates_str = ", ".join(dates)
+                            first_shows.append(f"• {link} ({dates_str})")
+                        else:
+                            first_shows.append(f"• {link}")
+                    remaining_count = len(changed_shows) - 5
+                    messages.append(f"📅 {len(changed_shows)} show dates updated at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows")
+
+            # Send combined message
+            combined_msg = "\n\n".join(messages)
+            logger.info(f"Found {len(new_shows)} new shows and {len(changed_shows)} changed shows")
+            send_telegram_message(combined_msg)
             save_shows(current_shows)
         else:
-            logger.info("No new shows found")
+            logger.info("No new or changed shows found")
             # Still persist if the normalized set changed (e.g., removals or link normalization)
             try:
                 prev_norm = set(_dedupe_normalize_filter_to_links(previous_shows))
