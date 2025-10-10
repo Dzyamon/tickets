@@ -1,8 +1,6 @@
 name: Friday check 
 
 on:
-  schedule:
-    - cron: '0 10-20 * * 5' # Every hour 12:00..22:00 UTC on Fridays
   workflow_dispatch: # Allow manual triggering
 
 jobs:
