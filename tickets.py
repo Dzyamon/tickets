@@ -299,6 +299,29 @@ def main():
                 seen.add(u)
                 ticket_urls.append(u)
         logger.info(f"Discovered {len(ticket_urls)} ticket pages from {len(show_items)} shows")
+        
+        # For weekend-only mode, filter ticket URLs to only include weekend dates
+        if weekend_only:
+            weekend_dates = set(_upcoming_weekend_dates())
+            weekend_ticket_urls = []
+            for url in ticket_urls:
+                try:
+                    # Quick scrape to get the date for this specific ticket page
+                    driver.get(url)
+                    time.sleep(0.5)  # Short delay for page load
+                    date_text = _extract_show_date(driver)
+                    if date_text in weekend_dates:
+                        weekend_ticket_urls.append(url)
+                        logger.debug(f"Ticket page {url} is for weekend date {date_text}")
+                    else:
+                        logger.debug(f"Ticket page {url} is for non-weekend date {date_text}, skipping")
+                except Exception as e:
+                    logger.warning(f"Failed to check date for ticket page {url}: {e}")
+                    # If we can't determine the date, include it to be safe
+                    weekend_ticket_urls.append(url)
+            
+            ticket_urls = weekend_ticket_urls
+            logger.info(f"Filtered to {len(ticket_urls)} weekend ticket pages from {len(discovered)} total discovered")
 
     if not ticket_urls:
         logger.info("No ticket URLs to scrape.")
