@@ -168,9 +168,8 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     logger.error(f"Error loading page: {str(e)}")
                     raise TimeoutError(f"Timeout or error loading page: {e}")
                 logger.info("Collecting show links done")
-                logger.info("Closing browser")
-                await context.close()
-                await browser.close()
+                
+                # Process and enrich shows while browser is still open
                 try:
                     unique_links = _dedupe_normalize_filter_to_links(shows)
                     logger.info(f"Successfully retrieved {len(shows)} shows ({len(unique_links)} unique)")
@@ -197,7 +196,7 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                                     parsed_dates.append(ddmmyyyy)
                             enriched.append({"link": show_link, "dates": parsed_dates})
                         except Exception as e:
-                            logger.debug(f"Failed to extract dates from {show_link}: {e}")
+                            logger.warning(f"Failed to extract dates from {show_link}: {e}")
                             enriched.append({"link": show_link, "dates": []})
                 except Exception as e:
                     logger.warning(f"Failed enriching dates: {e}")
@@ -205,6 +204,9 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                     enriched = [{"link": link, "dates": []} for link in unique_links]
 
                 logger.info(f"Successfully retrieved {len(enriched)} enriched shows")
+                logger.info("Closing browser")
+                await context.close()
+                await browser.close()
                 return enriched
         except Exception as e:
             logger.error(f"Error on attempt {attempt + 1}: {str(e)}")
