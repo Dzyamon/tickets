@@ -371,14 +371,54 @@ def main():
         logger.info(f"Notifying availability for {title} {url}: {count}")
         send_telegram_message(msg)
         
-    # Save current seats, ordered by show title
+    # Save current seats with smart filtering
     try:
         from collections import OrderedDict
-        sorted_items = sorted(out.items(), key=lambda kv: (kv[1].get("title", "").lower(), kv[0]))
+        
+        # Determine if this is weekend-only mode (Friday check)
+        workflow_name = os.getenv("GITHUB_WORKFLOW", "").strip()
+        weekend_only = (workflow_name == "Friday check") or (datetime.utcnow().weekday() == 4)
+        
+        if weekend_only:
+            # Friday check: Only update weekend shows, preserve others
+            logger.info("Weekend-only mode: merging weekend show data with existing seats.json")
+            
+            # Load existing data
+            existing_data = {}
+            if os.path.exists(SEATS_OUT_FILE):
+                try:
+                    with open(SEATS_OUT_FILE, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to load existing seats for merge: {e}")
+            
+            # Get weekend dates for filtering
+            weekend_dates = set(_upcoming_weekend_dates())
+            
+            # Update only weekend shows in existing data
+            updated_count = 0
+            for url, new_data in out.items():
+                # Check if this show is for the weekend
+                show_date = new_data.get("date", "")
+                if show_date in weekend_dates:
+                    existing_data[url] = new_data
+                    updated_count += 1
+                    logger.info(f"Updated weekend show: {new_data.get('title', 'Unknown')} ({show_date})")
+            
+            # Use existing data (now with weekend updates)
+            final_data = existing_data
+            logger.info(f"Updated {updated_count} weekend shows, preserved {len(existing_data) - updated_count} existing shows")
+        else:
+            # Monday check: Update all shows (complete overwrite)
+            logger.info("Full update mode: replacing all data in seats.json")
+            final_data = out
+        
+        # Save final data, ordered by show title
+        sorted_items = sorted(final_data.items(), key=lambda kv: (kv[1].get("title", "").lower(), kv[0]))
         ordered = OrderedDict(sorted_items)
         with open(SEATS_OUT_FILE, "w", encoding="utf-8") as f:
             json.dump(ordered, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved selenium seats to {SEATS_OUT_FILE}")
+        logger.info(f"Saved selenium seats to {SEATS_OUT_FILE} ({len(ordered)} total shows)")
     except Exception as e:
         logger.warning(f"Failed to save output: {e}")
 
