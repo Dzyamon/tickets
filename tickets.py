@@ -436,8 +436,8 @@ def main():
             logger.info("Full update mode: replacing all data in seats.json")
             final_data = out
         
-        # Save final data, ordered by show title
-        sorted_items = sorted(final_data.items(), key=lambda kv: (kv[1].get("title", "").lower(), kv[0]))
+        # Save final data, ordered by show date
+        sorted_items = sorted(final_data.items(), key=lambda kv: (_date_sort_key(kv[1].get("date", "")), kv[1].get("title", "").lower(), kv[0]))
         ordered = OrderedDict(sorted_items)
         with open(SEATS_OUT_FILE, "w", encoding="utf-8") as f:
             json.dump(ordered, f, ensure_ascii=False, indent=2)
