@@ -1,0 +1,22 @@
+name: Friday check 
+
+on:
+  schedule:
+    - cron: '0 12-22 * * 5' # Every hour 12:00..22:00 UTC on Fridays
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  friday-check:
+    uses: ./.github/workflows/global-checks.yml
+    with:
+      python-version: '3.11'
+      cache-key: 'tickets-friday'
+      cache-path: 'seats.json'
+      script-name: 'tickets.py'
+    secrets:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_IDS: ${{ secrets.CHAT_IDS }}
+    # Pass weekend-only flag to filter to nearest Sat/Sun
+    env:
+      WEEKEND_ONLY: '1'
+

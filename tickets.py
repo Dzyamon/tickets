@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import re
+from datetime import datetime, timedelta
 from typing import List
 
 import requests
@@ -169,6 +170,19 @@ def _date_sort_key(date_str: str):
         return (9999, 12, 31)
 
 
+def _upcoming_weekend_dates() -> List[str]:
+    """Return dates for the upcoming Saturday and Sunday in DD.MM.YYYY."""
+    today = datetime.utcnow().date()
+    # weekday(): Monday=0 ... Sunday=6; we want next Saturday (5) and Sunday (6)
+    days_until_sat = (5 - today.weekday()) % 7
+    days_until_sun = (6 - today.weekday()) % 7
+    sat = today + timedelta(days=days_until_sat)
+    sun = today + timedelta(days=days_until_sun)
+    def fmt(d):
+        return d.strftime("%d.%m.%Y")
+    return [fmt(sat), fmt(sun)]
+
+
 def scrape_ticket_page(driver: webdriver.Chrome, url: str) -> dict:
     driver.get(url)
     logger.info(f"Opened ticket page: {url}")
@@ -301,6 +315,10 @@ def main():
                 ok = False
         return ok
 
+    # Determine if we should restrict to nearest weekend dates (Friday check workflow)
+    workflow_name = os.getenv("GITHUB_WORKFLOW", "").strip()
+    weekend_only = os.getenv("WEEKEND_ONLY", "").strip() in {"1", "true", "True", "yes"} or workflow_name == "Friday check"
+
     # Send notifications for all shows with tickets available (>0), sorted by date
     # Build a list of items with current count, only those with count > 0
     notify_items = []
@@ -314,6 +332,11 @@ def main():
             notify_items.append((url, title, curr_count, date_str))
         except Exception:
             continue
+
+    # If weekend-only mode, keep only Sat/Sun of the upcoming weekend
+    if weekend_only:
+        weekend_dates = set(_upcoming_weekend_dates())
+        notify_items = [it for it in notify_items if it[3] in weekend_dates]
 
     # Sort by date ascending (unknown dates last)
     notify_items.sort(key=lambda item: _date_sort_key(item[3]))
