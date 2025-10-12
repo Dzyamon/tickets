@@ -374,9 +374,11 @@ def find_changed_shows(old, new):
 
         if normalized in old_shows_by_link:
             old_dates = old_shows_by_link[normalized]['dates']
-            if new_dates != old_dates:
+            # Only notify if new dates were added (not if dates were removed)
+            added_dates = new_dates - old_dates
+            if added_dates:
                 changed_shows.append(new_show)
-                logger.info(f"Show dates changed for {normalized}: {sorted(old_dates)} -> {sorted(new_dates)}")
+                logger.info(f"New dates added for {normalized}: {sorted(added_dates)} (total: {sorted(new_dates)})")
             else:
                 unchanged_shows.append(new_show)
         else:
@@ -471,7 +473,7 @@ def main():
                             show_list.append(f"• {link} ({dates_str})")
                         else:
                             show_list.append(f"• {link}")
-                    messages.append(f"📅 Show dates updated at {timestamp}:\n\n" + "\n".join(show_list))
+                    messages.append(f"📅 New dates added to shows at {timestamp}:\n\n" + "\n".join(show_list))
                 else:
                     first_shows = []
                     for show in changed_shows[:5]:
@@ -483,7 +485,7 @@ def main():
                         else:
                             first_shows.append(f"• {link}")
                     remaining_count = len(changed_shows) - 5
-                    messages.append(f"📅 {len(changed_shows)} show dates updated at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows")
+                    messages.append(f"📅 {len(changed_shows)} shows with new dates added at {timestamp}:\n\n" + "\n".join(first_shows) + f"\n\n... and {remaining_count} more shows")
 
             # Send combined message
             combined_msg = "\n\n".join(messages)
