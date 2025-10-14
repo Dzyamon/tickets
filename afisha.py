@@ -533,24 +533,12 @@ def main():
                 f"Found {len(new_shows)} new shows and {len(changed_shows)} with new dates"
             )
             send_telegram_message(combined_msg)
-            # Persist upcoming-only
+            # Persist upcoming-only on every run
             save_shows(current_upcoming)
         else:
             logger.info("No new or changed shows found")
-            # Still persist if the normalized set changed (e.g., removals or link normalization)
-            try:
-                prev_norm = set(_dedupe_normalize_filter_to_links(previous_upcoming))
-                curr_norm = set(_dedupe_normalize_filter_to_links(current_upcoming))
-                if prev_norm != curr_norm:
-                    logger.info(
-                        f"Saving updated upcoming list due to link changes (prev={len(prev_norm)}, curr={len(curr_norm)})"
-                    )
-                    save_shows(current_upcoming)
-                else:
-                    logger.info("Show list unchanged; no save needed")
-            except Exception:
-                # On any error determining diff, be safe and save
-                save_shows(current_upcoming)
+            # Always persist upcoming-only even if nothing changed
+            save_shows(current_upcoming)
             
     except Exception as e:
         error_msg = f"Error checking shows: {str(e)}"
