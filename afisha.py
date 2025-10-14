@@ -292,6 +292,41 @@ def _parse_ru_date_text_to_ddmmyyyy(text: str) -> str:
     except Exception:
         return ""
 
+def _parse_ddmmyyyy_to_date(date_str: str):
+    try:
+        return datetime.strptime((date_str or "").strip(), "%d.%m.%Y").date()
+    except Exception:
+        return None
+
+def _is_upcoming(date_str: str) -> bool:
+    try:
+        d = _parse_ddmmyyyy_to_date(date_str)
+        if not d:
+            return False
+        today = datetime.utcnow().date()
+        return d >= today
+    except Exception:
+        return False
+
+def _filter_to_upcoming(shows):
+    """Return a copy of shows with only upcoming dates retained."""
+    result = []
+    for item in shows or []:
+        try:
+            link = item.get("link") if isinstance(item, dict) else (item if isinstance(item, str) else None)
+            if not link:
+                continue
+            dates = []
+            if isinstance(item, dict):
+                dates = item.get("dates", [])
+            upcoming_dates = [d for d in dates if _is_upcoming(d)]
+            result.append({"link": link, "dates": upcoming_dates})
+        except Exception:
+            continue
+    return result
+
+# Removed: tracking of removed dates is not needed
+
 def save_shows(shows):
     try:
         # If shows is already enriched (list of dicts with link and dates), use as-is
@@ -425,10 +460,15 @@ def main():
         # If this is the first run (no previous shows), don't send notifications
         if not previous_shows:
             logger.info("First run detected. Saving shows without sending notifications.")
-            save_shows(current_shows)
+            # Persist only upcoming dates
+            upcoming = _filter_to_upcoming(current_shows)
+            save_shows(upcoming)
             return
             
-        changes = find_changed_shows(previous_shows, current_shows)
+        # Compare based on upcoming-only views to avoid persisting past dates
+        previous_upcoming = _filter_to_upcoming(previous_shows)
+        current_upcoming = _filter_to_upcoming(current_shows)
+        changes = find_changed_shows(previous_upcoming, current_upcoming)
         new_shows = changes['new']
         changed_shows = changes['changed']
         
@@ -489,25 +529,28 @@ def main():
 
             # Send combined message
             combined_msg = "\n\n".join(messages)
-            logger.info(f"Found {len(new_shows)} new shows and {len(changed_shows)} changed shows")
+            logger.info(
+                f"Found {len(new_shows)} new shows and {len(changed_shows)} with new dates"
+            )
             send_telegram_message(combined_msg)
-            save_shows(current_shows)
+            # Persist upcoming-only
+            save_shows(current_upcoming)
         else:
             logger.info("No new or changed shows found")
             # Still persist if the normalized set changed (e.g., removals or link normalization)
             try:
-                prev_norm = set(_dedupe_normalize_filter_to_links(previous_shows))
-                curr_norm = set(_dedupe_normalize_filter_to_links(current_shows))
+                prev_norm = set(_dedupe_normalize_filter_to_links(previous_upcoming))
+                curr_norm = set(_dedupe_normalize_filter_to_links(current_upcoming))
                 if prev_norm != curr_norm:
                     logger.info(
-                        f"Show list changed (prev={len(prev_norm)}, curr={len(curr_norm)}) without additions; saving updated list"
+                        f"Saving updated upcoming list due to link changes (prev={len(prev_norm)}, curr={len(curr_norm)})"
                     )
-                    save_shows(current_shows)
+                    save_shows(current_upcoming)
                 else:
                     logger.info("Show list unchanged; no save needed")
             except Exception:
                 # On any error determining diff, be safe and save
-                save_shows(current_shows)
+                save_shows(current_upcoming)
             
     except Exception as e:
         error_msg = f"Error checking shows: {str(e)}"
