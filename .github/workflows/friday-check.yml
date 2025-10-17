@@ -2,7 +2,7 @@ name: Friday check
 
 on:
   schedule:
-    - cron: '0 12,20 * * 5'
+    - cron: '0 12,16,20 * * 5'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
