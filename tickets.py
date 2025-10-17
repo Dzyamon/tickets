@@ -184,6 +184,22 @@ def _date_sort_key(date_str: str):
         return (9999, 12, 31)
 
 
+def _is_past_date(date_str: str) -> bool:
+    """Return True if date_str (DD.MM.YYYY) is strictly before today (UTC)."""
+    try:
+        ds = (date_str or "").strip()
+        if not ds:
+            return False
+        m = re.search(r"^(\d{2})\.(\d{2})\.(\d{4})$", ds)
+        if not m:
+            return False
+        dd, mm, yyyy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        d = datetime(yyyy, mm, dd).date()
+        return d < datetime.utcnow().date()
+    except Exception:
+        return False
+
+
 def _upcoming_weekend_dates() -> List[str]:
     """Return dates for the upcoming Saturday and Sunday in DD.MM.YYYY."""
     today = datetime.utcnow().date()
@@ -403,9 +419,9 @@ def main():
         weekend_only = (workflow_name == "Friday check") or (datetime.utcnow().weekday() == 4)
         
         if weekend_only:
-            # Friday check: Only update weekend shows, preserve others
-            logger.info("Weekend-only mode: merging weekend show data with existing seats.json")
-            
+            # Friday check: keep only weekend scan, and prune past-dated entries from seats.json
+            logger.info("Weekend-only mode: merging weekend updates and pruning past dates in seats.json")
+
             # Load existing data
             existing_data = {}
             if os.path.exists(SEATS_OUT_FILE):
@@ -414,23 +430,32 @@ def main():
                         existing_data = json.load(f)
                 except Exception as e:
                     logger.warning(f"Failed to load existing seats for merge: {e}")
-            
-            # Get weekend dates for filtering
+
+            # Prune entries whose stored date is in the past
+            pruned_data = {}
+            pruned_count = 0
+            for url, rec in (existing_data or {}).items():
+                try:
+                    rec_date = (rec or {}).get("date", "")
+                    if _is_past_date(rec_date):
+                        pruned_count += 1
+                        continue
+                    pruned_data[url] = rec
+                except Exception:
+                    pruned_data[url] = rec
+            if pruned_count:
+                logger.info(f"Pruned {pruned_count} past-dated entries from existing seats")
+
+            # Merge weekend updates from this run
             weekend_dates = set(_upcoming_weekend_dates())
-            
-            # Update only weekend shows in existing data
             updated_count = 0
             for url, new_data in out.items():
-                # Check if this show is for the weekend
-                show_date = new_data.get("date", "")
-                if show_date in weekend_dates:
-                    existing_data[url] = new_data
+                date_text = (new_data or {}).get("date", "")
+                if date_text in weekend_dates:
+                    pruned_data[url] = new_data
                     updated_count += 1
-                    logger.info(f"Updated weekend show: {new_data.get('title', 'Unknown')} ({show_date})")
-            
-            # Use existing data (now with weekend updates)
-            final_data = existing_data
-            logger.info(f"Updated {updated_count} weekend shows, preserved {len(existing_data) - updated_count} existing shows")
+            final_data = pruned_data
+            logger.info(f"Applied {updated_count} weekend updates; total kept {len(final_data)} entries after pruning")
         else:
             # Monday check: Update all shows (complete overwrite)
             logger.info("Full update mode: replacing all data in seats.json")
