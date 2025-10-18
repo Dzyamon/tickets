@@ -1,27 +1,9 @@
 [
   {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/282-mroiva#tickets",
-    "dates": [
-      "17.10.2025",
-      "24.10.2025",
-      "30.10.2025",
-      "19.11.2025",
-      "28.11.2025"
-    ]
-  },
-  {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/164-pansion-belvedere#tickets",
-    "dates": [
-      "17.10.2025",
-      "18.11.2025",
-      "19.11.2025"
-    ]
-  },
-  {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/150-tutta-karlsson-pervaya-i-edinstvennaya#tickets",
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/151-mojdodyr#tickets",
     "dates": [
       "18.10.2025",
-      "07.11.2025"
+      "15.11.2025"
     ]
   },
   {
@@ -53,6 +35,15 @@
     ]
   },
   {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/282-mroiva#tickets",
+    "dates": [
+      "24.10.2025",
+      "30.10.2025",
+      "19.11.2025",
+      "28.11.2025"
+    ]
+  },
+  {
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/285-khutar#tickets",
     "dates": [
       "25.10.2025",
@@ -75,7 +66,8 @@
       "02.11.2025",
       "04.11.2025",
       "05.11.2025",
-      "06.11.2025"
+      "06.11.2025",
+      "07.11.2025"
     ]
   },
   {
@@ -97,6 +89,12 @@
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/242-prodannyj-smekh#tickets",
     "dates": [
       "06.11.2025"
+    ]
+  },
+  {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/150-tutta-karlsson-pervaya-i-edinstvennaya#tickets",
+    "dates": [
+      "07.11.2025"
     ]
   },
   {
@@ -122,17 +120,19 @@
     ]
   },
   {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/151-mojdodyr#tickets",
-    "dates": [
-      "15.11.2025"
-    ]
-  },
-  {
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/260-babochki#tickets",
     "dates": [
       "15.11.2025",
       "16.11.2025",
-      "22.11.2025"
+      "22.11.2025",
+      "23.11.2025"
+    ]
+  },
+  {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/164-pansion-belvedere#tickets",
+    "dates": [
+      "18.11.2025",
+      "19.11.2025"
     ]
   },
   {
@@ -145,12 +145,6 @@
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/155-kot-v-sapogakh#tickets",
     "dates": [
       "22.11.2025"
-    ]
-  },
-  {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/261-babochki#tickets",
-    "dates": [
-      "23.11.2025"
     ]
   },
   {
