@@ -1,23 +1,5 @@
 [
   {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/248-umnaya-sobachka-sonya#tickets",
-    "dates": [
-      "19.10.2025",
-      "16.11.2025",
-      "30.11.2025"
-    ]
-  },
-  {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/265-kivi#tickets",
-    "dates": [
-      "19.10.2025",
-      "25.10.2025",
-      "26.10.2025",
-      "29.11.2025",
-      "30.11.2025"
-    ]
-  },
-  {
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/217-zapiski-yunogo-vracha#tickets",
     "dates": [
       "21.10.2025",
@@ -33,6 +15,15 @@
       "30.10.2025",
       "19.11.2025",
       "28.11.2025"
+    ]
+  },
+  {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/265-kivi#tickets",
+    "dates": [
+      "25.10.2025",
+      "26.10.2025",
+      "29.11.2025",
+      "30.11.2025"
     ]
   },
   {
@@ -124,6 +115,13 @@
       "16.11.2025",
       "22.11.2025",
       "23.11.2025"
+    ]
+  },
+  {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/248-umnaya-sobachka-sonya#tickets",
+    "dates": [
+      "16.11.2025",
+      "30.11.2025"
     ]
   },
   {
