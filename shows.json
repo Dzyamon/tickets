@@ -1,16 +1,7 @@
 [
   {
-    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/265-kivi#tickets",
-    "dates": [
-      "26.10.2025",
-      "29.11.2025",
-      "30.11.2025"
-    ]
-  },
-  {
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-vzroslykh/item/285-khutar#tickets",
     "dates": [
-      "26.10.2025",
       "28.10.2025",
       "29.10.2025",
       "26.11.2025"
@@ -137,6 +128,13 @@
     "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/155-kot-v-sapogakh#tickets",
     "dates": [
       "22.11.2025"
+    ]
+  },
+  {
+    "link": "https://puppet-minsk.by/spektakli/spektakli-dlya-detej/item/265-kivi#tickets",
+    "dates": [
+      "29.11.2025",
+      "30.11.2025"
     ]
   },
   {
