@@ -1,14 +1,4 @@
 {
-  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3783": {
-    "title": "Хутар",
-    "count": 0,
-    "date": "28.10.2025"
-  },
-  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3784": {
-    "title": "Хутар",
-    "count": 0,
-    "date": "29.10.2025"
-  },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3785": {
     "title": "МРОIВА",
     "count": 0,
@@ -16,7 +6,7 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3833": {
     "title": "Волк и семеро козлят",
-    "count": 2,
+    "count": 0,
     "date": "01.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3834": {
@@ -30,6 +20,11 @@
     "date": "01.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3836": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "01.11.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3945": {
     "title": "За снежной королевой",
     "count": 0,
     "date": "01.11.2025"
@@ -51,7 +46,7 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3838": {
     "title": "Красная Шапочка",
-    "count": 13,
+    "count": 0,
     "date": "02.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3841": {
@@ -94,7 +89,22 @@
     "count": 0,
     "date": "05.11.2025"
   },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3851": {
+    "title": "За снежной королевой",
+    "count": 4,
+    "date": "06.11.2025"
+  },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3852": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "06.11.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3950": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "06.11.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3952": {
     "title": "За снежной королевой",
     "count": 0,
     "date": "06.11.2025"
@@ -146,12 +156,12 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3860": {
     "title": "За снежной королевой",
-    "count": 0,
+    "count": 1,
     "date": "08.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3861": {
     "title": "Белоснежка",
-    "count": 3,
+    "count": 0,
     "date": "09.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3862": {
@@ -166,7 +176,7 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3864": {
     "title": "За снежной королевой",
-    "count": 1,
+    "count": 0,
     "date": "09.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3865": {
@@ -201,8 +211,13 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3870": {
     "title": "Мойдодыр",
-    "count": 7,
+    "count": 5,
     "date": "15.11.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3875": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "16.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3876": {
     "title": "Бабочки",
@@ -249,6 +264,11 @@
     "count": 0,
     "date": "22.11.2025"
   },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3885": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "22.11.2025"
+  },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3882": {
     "title": "Кот в сапогах",
     "count": 0,
@@ -256,7 +276,7 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3883": {
     "title": "Кот в сапогах",
-    "count": 5,
+    "count": 0,
     "date": "22.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3888": {
@@ -306,12 +326,12 @@
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3894": {
     "title": "Красная Шапочка",
-    "count": 7,
+    "count": 2,
     "date": "29.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3895": {
     "title": "Красная Шапочка",
-    "count": 30,
+    "count": 0,
     "date": "29.11.2025"
   },
   "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3900": {
@@ -333,5 +353,505 @@
     "title": "Умная собачка Соня",
     "count": 0,
     "date": "30.11.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3968": {
+    "title": "На чёрной-чёрной улице",
+    "count": 0,
+    "date": "03.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3969": {
+    "title": "На чёрной-чёрной улице",
+    "count": 0,
+    "date": "04.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3970": {
+    "title": "Ноч перад калядамi",
+    "count": 0,
+    "date": "05.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3979": {
+    "title": "Киви",
+    "count": 0,
+    "date": "06.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3980": {
+    "title": "Киви",
+    "count": 0,
+    "date": "06.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3971": {
+    "title": "Красная Шапочка",
+    "count": 113,
+    "date": "06.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3972": {
+    "title": "Красная Шапочка",
+    "count": 125,
+    "date": "06.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3973": {
+    "title": "Белоснежка",
+    "count": 0,
+    "date": "07.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3974": {
+    "title": "Белоснежка",
+    "count": 37,
+    "date": "07.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3981": {
+    "title": "Киви",
+    "count": 0,
+    "date": "07.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3982": {
+    "title": "Киви",
+    "count": 0,
+    "date": "07.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3975": {
+    "title": "Хутар",
+    "count": 0,
+    "date": "09.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3976": {
+    "title": "Хутар",
+    "count": 0,
+    "date": "10.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3978": {
+    "title": "Пансион «Belvedere»",
+    "count": 0,
+    "date": "12.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3985": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "13.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3986": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "13.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3983": {
+    "title": "Мойдодыр",
+    "count": 102,
+    "date": "13.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3984": {
+    "title": "Мойдодыр",
+    "count": 109,
+    "date": "13.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3989": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "14.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3990": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "14.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3987": {
+    "title": "Тутта Карлссон. Первая и единственная",
+    "count": 46,
+    "date": "14.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3988": {
+    "title": "Тутта Карлссон. Первая и единственная",
+    "count": 47,
+    "date": "14.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3993": {
+    "title": "Записки юного врача",
+    "count": 0,
+    "date": "16.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3994": {
+    "title": "Записки юного врача",
+    "count": 0,
+    "date": "17.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3995": {
+    "title": "МРОIВА",
+    "count": 0,
+    "date": "19.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3998": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "20.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3999": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "20.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3996": {
+    "title": "Волк и семеро козлят",
+    "count": 114,
+    "date": "20.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3997": {
+    "title": "Волк и семеро козлят",
+    "count": 104,
+    "date": "20.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4002": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "21.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4003": {
+    "title": "Бабочки",
+    "count": 0,
+    "date": "21.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4000": {
+    "title": "В стране невыученных уроков",
+    "count": 58,
+    "date": "21.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4001": {
+    "title": "В стране невыученных уроков",
+    "count": 0,
+    "date": "21.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4005": {
+    "title": "Ноч перад калядамi",
+    "count": 0,
+    "date": "24.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4008": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4009": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4010": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4011": {
+    "title": "За снежной королевой",
+    "count": 2,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4006": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4007": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "25.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4014": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "26.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4015": {
+    "title": "За снежной королевой",
+    "count": 5,
+    "date": "26.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4012": {
+    "title": "Морозко",
+    "count": 33,
+    "date": "26.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4013": {
+    "title": "Морозко",
+    "count": 39,
+    "date": "26.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4021": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4022": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4023": {
+    "title": "За снежной королевой",
+    "count": 1,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4024": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4019": {
+    "title": "Проданный смех",
+    "count": 3,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4020": {
+    "title": "Проданный смех",
+    "count": 0,
+    "date": "27.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4027": {
+    "title": "За снежной королевой",
+    "count": 4,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4028": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4029": {
+    "title": "За снежной королевой",
+    "count": 1,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4030": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4025": {
+    "title": "Проданный смех",
+    "count": 14,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4026": {
+    "title": "Проданный смех",
+    "count": 3,
+    "date": "28.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4033": {
+    "title": "За снежной королевой",
+    "count": 6,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4034": {
+    "title": "За снежной королевой",
+    "count": 11,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4035": {
+    "title": "За снежной королевой",
+    "count": 6,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4036": {
+    "title": "За снежной королевой",
+    "count": 8,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4031": {
+    "title": "Кот в сапогах",
+    "count": 78,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4032": {
+    "title": "Кот в сапогах",
+    "count": 72,
+    "date": "29.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4039": {
+    "title": "За снежной королевой",
+    "count": 7,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4040": {
+    "title": "За снежной королевой",
+    "count": 3,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4041": {
+    "title": "За снежной королевой",
+    "count": 6,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4042": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4037": {
+    "title": "Морозко",
+    "count": 37,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4038": {
+    "title": "Морозко",
+    "count": 38,
+    "date": "30.12.2025"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4045": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4046": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4047": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4048": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4043": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4044": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "02.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4051": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4052": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4053": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4054": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4049": {
+    "title": "Умная собачка Соня",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4050": {
+    "title": "Умная собачка Соня",
+    "count": 0,
+    "date": "03.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4057": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4058": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4059": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4060": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4055": {
+    "title": "Умная собачка Соня",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4056": {
+    "title": "Умная собачка Соня",
+    "count": 0,
+    "date": "04.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4061": {
+    "title": "Белоснежка",
+    "count": 0,
+    "date": "06.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4062": {
+    "title": "Белоснежка",
+    "count": 0,
+    "date": "06.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4063": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "06.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4064": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "06.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4067": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4068": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4069": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4070": {
+    "title": "За снежной королевой",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4065": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4066": {
+    "title": "Морозко",
+    "count": 0,
+    "date": "07.01.2026"
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=3943": {
+    "title": "Unknown Show",
+    "count": 0,
+    "date": ""
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4016": {
+    "title": "Unknown Show",
+    "count": 0,
+    "date": ""
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4017": {
+    "title": "Unknown Show",
+    "count": 0,
+    "date": ""
+  },
+  "https://tce.by/shows.html?base=RkZDMTE2MUQtMTNFNy00NUIyLTg0QzYtMURDMjRBNTc1ODA0&data=4073": {
+    "title": "Unknown Show",
+    "count": 0,
+    "date": ""
   }
 }
