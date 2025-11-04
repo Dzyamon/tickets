@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 from playwright.async_api import async_playwright, TimeoutError
 import requests
 import logging
@@ -19,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 AFISHA_BASE = "https://puppet-minsk.by"
-AFISHA_URL = f"{AFISHA_BASE}/afisha"
+AFISHA_URL = f"{AFISHA_BASE}/bilety/afisha"
 # Use different file names for local and GitHub Actions environments
 SHOWS_FILE = "local_shows.json" if os.getenv("GITHUB_ACTIONS") != "true" else "shows.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -126,38 +127,56 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         raise Exception("Failed to get response from page")
                     if not response.ok:
                         raise Exception(f"Page returned status {response.status}")
-                    logger.info("Waiting for content to load / links to appear")
-                    # Detect bot-protection text and wait it out if present
+                    logger.info("Waiting for table content to load")
+                    # Wait for the table to appear
                     try:
-                        protection_text = await page.query_selector("text=Making sure you're not a bot!")
-                        if protection_text:
-                            logger.info("Bot protection detected, waiting up to 60s...")
-                            await page.wait_for_selector("a[href*='tce.by'], a:has-text('Купить билет')", timeout=60000)
+                        await page.wait_for_selector("table", timeout=60000)
                     except Exception:
                         pass
-                    # Poll for links with light scrolling to trigger lazy content
-                    shows = []
-                    max_checks = 20
-                    for i in range(max_checks):
-                        link_elements = await page.query_selector_all("a[href*='tce.by'], a:has-text('Купить билет')")
-                        if link_elements:
-                            for link_elem in link_elements:
-                                try:
-                                    href = await link_elem.get_attribute("href")
-                                    if href:
-                                        shows.append(href)
-                                except Exception:
+                    
+                    # Parse table rows to extract shows and dates
+                    shows_data = []
+                    try:
+                        # Get all table rows (skip header row)
+                        rows = await page.query_selector_all("table tbody tr, table tr")
+                        logger.info(f"Found {len(rows)} table rows")
+                        
+                        for row in rows:
+                            try:
+                                # Get all cells in the row
+                                cells = await row.query_selector_all("td")
+                                if len(cells) < 2:
                                     continue
-                            if shows:
-                                break
-                        # Scroll a bit and wait before next check
-                        try:
-                            await page.evaluate("window.scrollBy(0, document.documentElement.clientHeight);")
-                        except Exception:
-                            pass
-                        await asyncio.sleep(3)
-                    if not shows:
-                        raise TimeoutError("No ticket links found after polling")
+                                
+                                # First cell contains date/time like "02.11.2025 11:00"
+                                date_cell = cells[0]
+                                date_text = await date_cell.inner_text()
+                                date_text = (date_text or "").strip()
+                                
+                                # Extract date part (DD.MM.YYYY) from "DD.MM.YYYY HH:MM"
+                                date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", date_text)
+                                if not date_match:
+                                    continue
+                                date_str = date_match.group(1)
+                                
+                                # Second cell contains the show link
+                                link_cell = cells[1]
+                                link_elem = await link_cell.query_selector("a[href*='tce.by']")
+                                if not link_elem:
+                                    continue
+                                
+                                href = await link_elem.get_attribute("href")
+                                if href and "tce.by" in href:
+                                    shows_data.append({"link": href, "date": date_str})
+                            except Exception as e:
+                                logger.debug(f"Error parsing table row: {e}")
+                                continue
+                        
+                        if not shows_data:
+                            raise TimeoutError("No shows found in table")
+                    except Exception as e:
+                        logger.warning(f"Error parsing table: {e}")
+                        raise TimeoutError(f"Failed to parse table: {e}")
                 except Exception as e:
                     # Try to capture a screenshot to aid debugging
                     try:
@@ -167,41 +186,28 @@ async def get_shows_with_retry(max_retries=3, timeout=30000):
                         logger.error(f"Failed to take screenshot: {shot_err}")
                     logger.error(f"Error loading page: {str(e)}")
                     raise TimeoutError(f"Timeout or error loading page: {e}")
-                logger.info("Collecting show links done")
+                logger.info(f"Collected {len(shows_data)} show entries from table")
                 
-                # Process and enrich shows while browser is still open
-                try:
-                    unique_links = _dedupe_normalize_filter_to_links(shows)
-                    logger.info(f"Successfully retrieved {len(shows)} shows ({len(unique_links)} unique)")
-                except Exception:
-                    unique_links = []
-
-                # Enrich each show with available dates from its page
+                # Group by link and collect all dates for each show
+                shows_by_link = {}
+                for entry in shows_data:
+                    link = entry.get("link", "")
+                    date_str = entry.get("date", "")
+                    if not link:
+                        continue
+                    # Normalize link (strip fragment)
+                    normalized_link = link.split('#')[0] if '#' in link else link
+                    if normalized_link not in shows_by_link:
+                        shows_by_link[normalized_link] = []
+                    if date_str and date_str not in shows_by_link[normalized_link]:
+                        shows_by_link[normalized_link].append(date_str)
+                
+                # Convert to enriched format
                 enriched = []
-                try:
-                    for show_link in unique_links:
-                        try:
-                            # Open show page
-                            await page.goto(show_link, wait_until='domcontentloaded')
-                            await page.wait_for_timeout(500)
-                            # Extract texts from date-time blocks
-                            date_texts = await page.eval_on_selector_all(
-                                "div.date-time p",
-                                "els => els.map(e => (e.textContent||'').trim()).filter(Boolean)"
-                            )
-                            parsed_dates = []
-                            for dt in date_texts or []:
-                                ddmmyyyy = _parse_ru_date_text_to_ddmmyyyy(dt)
-                                if ddmmyyyy and ddmmyyyy not in parsed_dates:
-                                    parsed_dates.append(ddmmyyyy)
-                            enriched.append({"link": show_link, "dates": parsed_dates})
-                        except Exception as e:
-                            logger.warning(f"Failed to extract dates from {show_link}: {e}")
-                            enriched.append({"link": show_link, "dates": []})
-                except Exception as e:
-                    logger.warning(f"Failed enriching dates: {e}")
-                    # Fallback to simple links if date extraction fails
-                    enriched = [{"link": link, "dates": []} for link in unique_links]
+                for link, dates in shows_by_link.items():
+                    enriched.append({"link": link, "dates": sorted(dates)})
+                
+                logger.info(f"Grouped into {len(enriched)} unique shows with dates")
 
                 logger.info(f"Successfully retrieved {len(enriched)} enriched shows")
                 logger.info("Closing browser")
